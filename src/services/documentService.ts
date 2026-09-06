@@ -125,6 +125,12 @@ export interface ProcessOptions {
   /** Milliseconds per stage. Kept short enough for a live demo. */
   stageDurationMs?: number
   signal?: AbortSignal
+  /**
+   * Tags this upload with the kiosk session it belongs to. Uploads happen
+   * before a patient record exists, so the backend holds documents under this
+   * id until `POST /kiosk/submissions` re-parents them onto the new patient.
+   */
+  documentSessionId?: string
 }
 
 export const documentService = {
@@ -143,12 +149,13 @@ export const documentService = {
     file: File | undefined,
     options: ProcessOptions,
   ): Promise<DocumentExtraction> {
-    const { onStage, stageDurationMs = 900, signal } = options
+    const { onStage, stageDurationMs = 900, signal, documentSessionId } = options
 
     if (!API_CONFIG.useMock && file) {
       const form = new FormData()
       form.append("file", file)
       form.append("docType", document.docType)
+      if (documentSessionId) form.append("documentSessionId", documentSessionId)
       onStage("uploading", 10)
       const extraction = await request<DocumentExtraction>("/documents", {
         method: "POST",

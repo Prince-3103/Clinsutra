@@ -1,6 +1,7 @@
 import { COMPLAINTS } from "@/data"
 import type {
   Answer,
+  ClinicalHistory,
   ComplaintId,
   Language,
   LocalizedText,
@@ -121,6 +122,45 @@ export function buildDraftSections(
       value: NOT_REPORTED[language],
     },
   ]
+}
+
+type ClinicalHistoryPatch = Partial<Omit<ClinicalHistory, "patientId" | "updatedAt">>
+
+const HISTORY_FIELD_BY_SECTION_ID: Partial<
+  Record<DraftSection["id"], keyof ClinicalHistoryPatch>
+> = {
+  "chief-complaint": "chiefComplaint",
+  hpi: "historyOfPresentIllness",
+  pmh: "pastMedicalHistory",
+  "family-history": "familyHistory",
+  "personal-history": "personalHistory",
+}
+
+/**
+ * Turns the reviewed draft sections into the `ClinicalHistory` patch sent
+ * with `POST /kiosk/submissions`. `edits` holds whatever the patient/clinician
+ * changed on the review screen, keyed by section id — falls back to the
+ * drafted value when a section was never touched.
+ *
+ * `medications` and `allergies` sections are free-text narrative today (the
+ * kiosk has no structured entry for either), while `ClinicalHistory` expects
+ * typed arrays for both — they are intentionally left out here rather than
+ * force-fit, exactly as before this change; a clinician adds them later via
+ * `clinicalService.saveHistory`.
+ */
+export function toClinicalHistoryPatch(
+  drafted: DraftSection[],
+  edits: Record<string, string>,
+): ClinicalHistoryPatch {
+  const patch: Record<string, string> = {}
+
+  for (const section of drafted) {
+    const field = HISTORY_FIELD_BY_SECTION_ID[section.id]
+    if (!field) continue
+    patch[field] = edits[section.id] ?? section.value
+  }
+
+  return patch as ClinicalHistoryPatch
 }
 
 /** One-line complaint summary for the doctor's queue row. */

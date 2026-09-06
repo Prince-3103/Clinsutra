@@ -1,6 +1,7 @@
 import { CURRENT_DOCTOR, MOCK_PATIENTS } from "@/data"
 import type {
   Answer,
+  ClinicalHistory,
   ComplaintId,
   Doctor,
   Patient,
@@ -22,16 +23,29 @@ export interface KioskSubmission {
   priority: Priority
   redFlag: boolean
   flags: string[]
+
   /**
-   * Interview + document context for the handoff, so the backend can build
-   * the Interview/InterviewAnswer records and link already-uploaded
-   * documents to the new patient in the same call. Optional so the mock
-   * path (which only builds a `Patient` row) is unaffected.
+   * The chief-complaint branch the follow-up questions were drawn from.
+   * Optional so a submission built before this field existed still works.
    */
   complaintId?: ComplaintId | null
+  /**
+   * The clinician-reviewable draft the patient confirmed on the review
+   * screen (see `buildDraftSections` / `ReviewPage`). Partial because the
+   * kiosk only ever fills in what the interview actually covered — the
+   * backend stores it as-is, per Phase 7 (no AI generation here).
+   */
+  clinicalHistory?: Partial<
+    Omit<ClinicalHistory, "patientId" | "updatedAt">
+  >
+  /** Raw interview trail, kept alongside the drafted narrative. */
   answers?: Answer[]
-  /** `UploadedDocument.remoteId` for every document from this kiosk visit. */
-  documentIds?: string[]
+  /**
+   * Ties documents uploaded earlier in this kiosk visit (before a patient
+   * record existed) to the patient created by this submission — see
+   * `documentService.process` and `KioskSessionProvider`.
+   */
+  documentSessionId?: string
 }
 
 export interface SubmissionReceipt {

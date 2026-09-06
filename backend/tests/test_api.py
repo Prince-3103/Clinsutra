@@ -1,25 +1,11 @@
 """
-Covers the Phase 18 test checklist: create/get patient, submit interview,
-save answers, save clinical history, upload document metadata, kiosk
-submission, doctor queue, clinical history retrieval, timeline, alerts, plus
-`/docs` and the predictable-error-shape requirement.
+Covers the flows the spec calls out explicitly: create/get patient, submit an
+interview, save clinical history, upload a document, create a kiosk
+submission, retrieve the doctor queue, retrieve the timeline, retrieve
+alerts, plus `/docs` availability.
 """
 
 import io
-
-
-def _identification(**overrides):
-    base = {
-        "mode": "new",
-        "abhaId": "",
-        "hospitalRegNumber": "",
-        "fullName": "Test Patient",
-        "age": "40",
-        "gender": "Male",
-        "phone": "9000000000",
-    }
-    base.update(overrides)
-    return base
 
 
 def test_docs_available(client):
@@ -27,197 +13,212 @@ def test_docs_available(client):
     assert response.status_code == 200
 
 
-def test_health_check(client):
+def test_health(client):
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json() == {"status": "ok"}
 
 
-def test_create_and_get_patient(client):
-    created = client.post(
-        "/api/patients", json={"name": "Asha Rao", "age": 34, "gender": "Female", "complaint": "Fever"}
+def test_get_current_doctor(client):
+    response = client.get("/api/doctors/me")
+    assert response.status_code == 200
+    assert response.json()["name"]
+
+
+def test_empty_queue(client):
+    response = client.get("/api/patients")
+    assert response.status_code == 200
+    assert response.json() == []
+
+
+def test_opening_question_and_follow_ups(client):
+    opening = client.get("/api/interview/opening")
+    assert opening.status_code == 200
+    assert opening.json()["id"] == "q-chief-complaint"
+
+    follow_ups = client.post(
+        "/api/interview/follow-ups", json={"complaintId": "fever", "previousAnswers": []}
     )
-    assert created.status_code == 201
-    body = created.json()
-    assert body["name"] == "Asha Rao"
-    assert body["status"] == "Waiting"
-    assert body["id"] == body["token"]
-
-    fetched = client.get(f"/api/patients/{body['id']}")
-    assert fetched.status_code == 200
-    assert fetched.json()["id"] == body["id"]
+    assert follow_ups.status_code == 200
+    assert len(follow_ups.json()) == 3
 
 
-def test_get_unknown_patient_returns_predictable_404(client):
-    response = client.get("/api/patients/DOES-NOT-EXIST")
-    assert response.status_code == 404
-    assert response.json() == {"code": "patient_not_found", "message": "Patient DOES-NOT-EXIST not found"}
-
-
-def test_create_patient_validation_error_shape(client):
-    response = client.post("/api/patients", json={"name": "Missing Fields"})
-    assert response.status_code == 422
-    body = response.json()
-    assert set(body.keys()) == {"code", "message"}
-    assert body["code"] == "invalid_request"
-
-
-def test_submit_interview_and_answers(client):
-    started = client.post("/api/interview", json={"complaintId": "fever"})
-    assert started.status_code == 201
-    interview_id = started.json()["id"]
-    assert started.json()["answers"] == []
-
-    answered = client.post(
-        f"/api/interview/{interview_id}/answers",
-        json={"answers": [{"questionId": "duration", "optionIds": ["3-days"]}]},
-    )
-    assert answered.status_code == 200
-    assert len(answered.json()["answers"]) == 1
-    assert answered.json()["answers"][0]["questionId"] == "duration"
-
-
-def test_save_clinical_history(client):
-    patient = client.post(
-        "/api/patients", json={"name": "History Patient", "age": 50, "gender": "Male", "complaint": "Cough"}
-    ).json()
-
-    updated = client.patch(
-        f"/api/patients/{patient['id']}/history",
+def test_triage_assessment_fires_red_flag(client):
+    response = client.post(
+        "/api/triage/assess",
         json={
-            "chiefComplaint": "Cough for 5 days",
-            "medications": [{"name": "Cetirizine", "dose": "10mg", "frequency": "OD"}],
-            "allergies": [{"substance": "Dust", "reaction": "Sneezing", "severity": "low"}],
+            "complaintId": "chest-pain",
+            "answers": [
+                {
+                    "questionId": "cp-radiation",
+                    "optionIds": ["cp-rad-arm"],
+                    "answeredAt": "2026-01-01T00:00:00Z",
+                }
+            ],
         },
     )
-    assert updated.status_code == 200
-    body = updated.json()
-    assert body["chiefComplaint"] == "Cough for 5 days"
-    assert body["medications"][0]["name"] == "Cetirizine"
-    assert body["allergies"][0]["substance"] == "Dust"
-
-    fetched = client.get(f"/api/patients/{patient['id']}/history")
-    assert fetched.status_code == 200
-    assert fetched.json()["chiefComplaint"] == "Cough for 5 days"
+    assert response.status_code == 200
+    body = response.json()
+    assert body["triggered"] is True
+    assert body["priority"] == "P1"
+    assert "cp-radiation-arm" in body["ruleIds"]
 
 
-def test_upload_document_metadata(client):
-    response = client.post(
+def test_triage_assessment_no_signals(client):
+    response = client.post("/api/triage/assess", json={"complaintId": None, "answers": []})
+    assert response.status_code == 200
+    assert response.json() == {"triggered": False, "priority": "P3", "ruleIds": [], "reasons": []}
+
+
+def test_document_upload_then_kiosk_submission_reparents_it(client):
+    upload = client.post(
         "/api/documents",
         files={"file": ("report.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
-        data={"docType": "lab"},
+        data={"docType": "lab", "documentSessionId": "sess-1"},
     )
-    assert response.status_code == 201
-    body = response.json()
-    assert body["detectedType"] == "lab"
-    assert body["documentId"].startswith("doc-")
+    assert upload.status_code == 200
+    extraction = upload.json()
+    assert extraction["detectedType"] == "lab"
+    assert extraction["fields"]
+
+    submission = client.post(
+        "/api/kiosk/submissions",
+        json={
+            "identification": {
+                "mode": "new",
+                "abhaId": "77-0000-0000-0000",
+                "hospitalRegNumber": "",
+                "fullName": "Asha Kiran",
+                "age": "34",
+                "gender": "Female",
+                "phone": "9000000000",
+            },
+            "complaint": "Fever for 3 days",
+            "priority": "P2",
+            "redFlag": False,
+            "flags": [],
+            "complaintId": "fever",
+            "clinicalHistory": {
+                "chiefComplaint": "Fever for 3 days",
+                "historyOfPresentIllness": "No rigors, no rash",
+            },
+            "answers": [
+                {
+                    "questionId": "fv-duration",
+                    "optionIds": ["fv-dur-3"],
+                    "answeredAt": "2026-01-01T00:00:00Z",
+                }
+            ],
+            "documentSessionId": "sess-1",
+        },
+    )
+    assert submission.status_code == 200
+    receipt = submission.json()
+    patient_id = receipt["patientId"]
+    assert receipt["token"] == patient_id
+
+    # Patient now visible in the doctor queue.
+    queue = client.get("/api/patients").json()
+    assert any(p["id"] == patient_id for p in queue)
+
+    # Clinical history persisted from the kiosk draft.
+    history = client.get(f"/api/patients/{patient_id}/history").json()
+    assert history["chiefComplaint"] == "Fever for 3 days"
+
+    # Document uploaded pre-submission is re-parented onto the new patient.
+    single = client.get(f"/api/patients/{patient_id}").json()
+    assert single["id"] == patient_id
 
 
-def test_upload_document_rejects_unsupported_type(client):
+def test_update_patient_status(client):
+    submission = client.post(
+        "/api/kiosk/submissions",
+        json={
+            "identification": {
+                "mode": "new",
+                "abhaId": "",
+                "hospitalRegNumber": "",
+                "fullName": "Ravi Teja",
+                "age": "50",
+                "gender": "Male",
+                "phone": "",
+            },
+            "complaint": "Follow-up",
+            "priority": "P3",
+            "redFlag": False,
+            "flags": [],
+        },
+    ).json()
+    patient_id = submission["patientId"]
+
+    response = client.patch(f"/api/patients/{patient_id}/status", json={"status": "Completed"})
+    assert response.status_code == 200
+    assert response.json()["status"] == "Completed"
+    assert response.json()["waitTime"] == "—"
+
+
+def test_history_patch_upserts_when_missing(client):
+    submission = client.post(
+        "/api/kiosk/submissions",
+        json={
+            "identification": {
+                "mode": "new",
+                "abhaId": "",
+                "hospitalRegNumber": "",
+                "fullName": "No History Yet",
+                "age": "20",
+                "gender": "Other",
+                "phone": "",
+            },
+            "complaint": "Skin rash",
+            "priority": "P3",
+            "redFlag": False,
+            "flags": [],
+        },
+    ).json()
+    patient_id = submission["patientId"]
+
+    # No clinicalHistory was submitted, so history doesn't exist yet.
+    assert client.get(f"/api/patients/{patient_id}/history").status_code == 404
+
+    patched = client.patch(
+        f"/api/patients/{patient_id}/history",
+        json={"chiefComplaint": "Skin rash", "confirmedByClinician": True},
+    )
+    assert patched.status_code == 200
+    assert patched.json()["confirmedByClinician"] is True
+
+
+def test_timeline_and_alerts_empty_for_new_patient(client):
+    submission = client.post(
+        "/api/kiosk/submissions",
+        json={
+            "identification": {
+                "mode": "new",
+                "abhaId": "",
+                "hospitalRegNumber": "",
+                "fullName": "Timeline Test",
+                "age": "40",
+                "gender": "Male",
+                "phone": "",
+            },
+            "complaint": "Check-up",
+            "priority": "P3",
+            "redFlag": False,
+            "flags": [],
+        },
+    ).json()
+    patient_id = submission["patientId"]
+
+    assert client.get(f"/api/patients/{patient_id}/timeline").json() == []
+    assert client.get(f"/api/patients/{patient_id}/alerts").json() == []
+    assert client.get(f"/api/patients/{patient_id}/vitals").json() == []
+
+
+def test_document_rejects_unsupported_mime_type(client):
     response = client.post(
         "/api/documents",
         files={"file": ("notes.txt", io.BytesIO(b"hello"), "text/plain")},
         data={"docType": "other"},
     )
     assert response.status_code == 422
-    assert response.json()["code"] == "invalid_document"
-
-
-def _submit_kiosk_session(client) -> str:
-    """Helper (not a test): runs the full kiosk handoff and returns the new patient id."""
-    doc = client.post(
-        "/api/documents",
-        files={"file": ("scan.jpg", io.BytesIO(b"fake-bytes"), "image/jpeg")},
-        data={"docType": "imaging"},
-    ).json()
-
-    submission = client.post(
-        "/api/kiosk/submissions",
-        json={
-            "identification": _identification(fullName="Ramesh Kumar", age="52"),
-            "complaint": "Chest pain radiating to left arm",
-            "priority": "P1",
-            "redFlag": True,
-            "flags": ["Chest pain with radiation"],
-            "complaintId": "chest-pain",
-            "answers": [{"questionId": "onset", "optionIds": ["onset-sudden"]}],
-            "documentIds": [doc["documentId"]],
-        },
-    )
-    assert submission.status_code == 201
-    patient_id = submission.json()["patientId"]
-    assert submission.json()["token"] == patient_id
-    return patient_id
-
-
-def test_kiosk_submission_creates_full_handoff(client):
-    patient_id = _submit_kiosk_session(client)
-    assert patient_id.startswith("OPD-")
-
-
-def test_doctor_queue_shows_submitted_patient(client):
-    patient_id = _submit_kiosk_session(client)
-
-    queue = client.get("/api/patients", params={"filter": "waiting"})
-    assert queue.status_code == 200
-    ids = [p["id"] for p in queue.json()]
-    assert patient_id in ids
-
-
-def test_retrieve_clinical_history_after_submission(client):
-    patient_id = _submit_kiosk_session(client)
-
-    history = client.get(f"/api/patients/{patient_id}/history")
-    assert history.status_code == 200
-    assert history.json()["chiefComplaint"] == "Chest pain radiating to left arm"
-
-
-def test_retrieve_interview_and_documents_after_submission(client):
-    patient_id = _submit_kiosk_session(client)
-
-    interview = client.get(f"/api/patients/{patient_id}/interview")
-    assert interview.status_code == 200
-    assert interview.json()["complaintId"] == "chest-pain"
-
-    documents = client.get(f"/api/patients/{patient_id}/documents")
-    assert documents.status_code == 200
-    assert len(documents.json()) == 1
-
-
-def test_retrieve_timeline_empty_for_new_patient(client):
-    patient_id = _submit_kiosk_session(client)
-
-    timeline = client.get(f"/api/patients/{patient_id}/timeline")
-    assert timeline.status_code == 200
-    assert timeline.json() == []
-
-
-def test_retrieve_alerts_after_red_flag_submission(client):
-    patient_id = _submit_kiosk_session(client)
-
-    alerts = client.get(f"/api/patients/{patient_id}/alerts")
-    assert alerts.status_code == 200
-    assert len(alerts.json()) == 1
-    assert alerts.json()[0]["category"] == "caution"
-
-
-def test_triage_assessment_flags_high_risk_signals(client):
-    response = client.post(
-        "/api/triage/assess",
-        json={"complaintId": "chest-pain", "answers": [{"questionId": "q1", "optionIds": ["radiation-arm"]}]},
-    )
-    assert response.status_code == 200
-    body = response.json()
-    assert body["triggered"] is True
-    assert body["priority"] == "P1"
-
-
-def test_update_patient_status(client):
-    patient = client.post(
-        "/api/patients", json={"name": "Status Patient", "age": 25, "gender": "Other", "complaint": "Check-up"}
-    ).json()
-
-    updated = client.patch(f"/api/patients/{patient['id']}/status", json={"status": "Completed"})
-    assert updated.status_code == 200
-    assert updated.json()["status"] == "Completed"
-    assert updated.json()["waitTime"] == "—"

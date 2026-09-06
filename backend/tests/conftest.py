@@ -1,56 +1,37 @@
-"""
-Test fixtures.
-
-Runs against a real MySQL database (`clinsutra_test` by default, override with
-`TEST_DATABASE_URL`) rather than SQLite, since a few things here (native
-ENUM columns, JSON columns) are MySQL-specific and worth catching in CI.
-Every test gets a clean schema: tables are dropped and recreated per test
-function, which keeps tests independent without needing transactional
-rollback tricks around FastAPI's own session handling.
-"""
-
-import os
-
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 
-os.environ.setdefault(
-    "DATABASE_URL",
-    os.environ.get(
-        "TEST_DATABASE_URL", "mysql+pymysql://clinsutra:clinsutra_dev_pw@localhost:3306/clinsutra_test"
-    ),
-)
+from app.core.config import get_settings
+from app.core.database import Base, get_db
+from app.main import app
 
-from app.core.database import Base, get_db  # noqa: E402
-from app import models as _models  # noqa: E402,F401  (registers every model on Base.metadata)
-from app.main import app  # noqa: E402
-
-TEST_DATABASE_URL = os.environ["DATABASE_URL"]
-engine = create_engine(TEST_DATABASE_URL, future=True)
-TestingSessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine, future=True)
+settings = get_settings()
+engine = create_engine(settings.test_database_url, pool_pre_ping=True)
+TestSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
 
 
-@pytest.fixture(autouse=True)
-def _clean_schema():
-    Base.metadata.drop_all(bind=engine)
+@pytest.fixture()
+def db_session():
     Base.metadata.create_all(bind=engine)
-    yield
-    Base.metadata.drop_all(bind=engine)
-
-
-def _override_get_db():
-    db = TestingSessionLocal()
+    session = TestSessionLocal()
     try:
-        yield db
+        yield session
     finally:
-        db.close()
+        session.close()
+        Base.metadata.drop_all(bind=engine)
 
 
-app.dependency_overrides[get_db] = _override_get_db
+@pytest.fixture()
+def client(db_session):
+    def override_get_db():
+        try:
+            yield db_session
+        finally:
+            pass
 
-
-@pytest.fixture
-def client():
-    return TestClient(app)
+    app.dependency_overrides[get_db] = override_get_db
+    with TestClient(app) as test_client:
+        yield test_client
+    app.dependency_overrides.clear()

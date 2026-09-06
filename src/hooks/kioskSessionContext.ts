@@ -20,6 +20,13 @@ export interface KioskSessionState {
   assessment: RedFlagAssessment | null
   /** Issued by `patientService.submitKioskSession` on the review screen. */
   token: string | null
+  /**
+   * Client-generated id that tags every document uploaded before a patient
+   * record exists. `POST /kiosk/submissions` carries the same id so the
+   * backend can re-parent this session's documents onto the new patient —
+   * see documentService.ts and patientService.ts's `KioskSubmission`.
+   */
+  documentSessionId: string
 }
 
 export interface KioskSessionValue extends KioskSessionState {

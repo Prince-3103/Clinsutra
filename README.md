@@ -62,18 +62,22 @@ src/
 ├── data/          mock patients, histories, timeline, alerts,
 │                  adaptive question bank, red-flag rules, translations
 └── utils/         redFlags, summary, format, cn
+
+backend/           FastAPI + SQLAlchemy 2.x + MySQL — see backend/README.md
 ```
 
 ## Connecting the FastAPI backend
 
 Every screen already talks to `src/services/*`, never to the mock data
-directly. To switch over:
+directly. A backend implementing this exact contract lives in `backend/`
+(FastAPI + SQLAlchemy 2.x + MySQL — see `backend/README.md` for setup). To
+switch over:
 
-1. Copy `.env.example` to `.env.local`, set `VITE_API_BASE_URL` to the FastAPI
-   host and `VITE_USE_MOCK_API=false`.
-2. Implement the endpoints the services already call — they are listed in each
-   service's `request(...)` calls, e.g. `GET /patients`,
-   `POST /interview/follow-ups`, `POST /triage/assess`, `POST /documents`.
+1. Set up and run the backend: `cd backend && pip install -r requirements.txt`,
+   point `DATABASE_URL` in `.env` at your MySQL instance, `alembic upgrade head`,
+   then `uvicorn app.main:app --reload`.
+2. Copy `.env.example` to `.env.local`, set `VITE_API_BASE_URL` to the FastAPI
+   host (`http://localhost:8000/api` by default) and `VITE_USE_MOCK_API=false`.
 3. For voice, add a `SpeechEngine` implementation in `voiceService.ts` that
    posts audio to the backend. Nothing in the UI changes.
 

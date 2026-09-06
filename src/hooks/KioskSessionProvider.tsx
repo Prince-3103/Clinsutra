@@ -16,6 +16,11 @@ import {
   type KioskSessionValue,
 } from "./kioskSessionContext"
 
+/** Same shape as `documentService.createDocumentRecord`'s id — no extra dependency. */
+function createSessionId(): string {
+  return `sess-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+}
+
 /**
  * Holds everything one kiosk visit collects.
  *
@@ -32,6 +37,7 @@ export function KioskSessionProvider({ children }: { children: ReactNode }) {
   const [documents, setDocuments] = useState<UploadedDocument[]>([])
   const [assessment, setAssessment] = useState<RedFlagAssessment | null>(null)
   const [token, setToken] = useState<string | null>(null)
+  const [documentSessionId, setDocumentSessionId] = useState<string>(createSessionId)
 
   // File handles live outside React state — they are not serializable and must
   // not end up in a store that could be persisted.
@@ -121,6 +127,7 @@ export function KioskSessionProvider({ children }: { children: ReactNode }) {
     setDocuments([])
     setAssessment(null)
     setToken(null)
+    setDocumentSessionId(createSessionId())
   }, [])
 
   const allDocumentsProcessed = documents.every(
@@ -140,6 +147,7 @@ export function KioskSessionProvider({ children }: { children: ReactNode }) {
       documents,
       assessment,
       token,
+      documentSessionId,
       setLanguage,
       updateIdentification,
       setComplaint,
@@ -164,6 +172,7 @@ export function KioskSessionProvider({ children }: { children: ReactNode }) {
       documents,
       assessment,
       token,
+      documentSessionId,
       updateIdentification,
       setComplaint,
       answerQuestion,

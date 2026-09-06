@@ -4,7 +4,13 @@ import { Button, Card, Disclaimer } from "@/components/common"
 import { ReviewSection } from "@/components/patient"
 import { useKioskSession, useTranslation } from "@/hooks"
 import { patientService } from "@/services"
-import { buildDraftSections, cn, complaintSummary, initialOf } from "@/utils"
+import {
+  buildDraftSections,
+  cn,
+  complaintSummary,
+  initialOf,
+  toClinicalHistoryPatch,
+} from "@/utils"
 
 export function ReviewPage() {
   const navigate = useNavigate()
@@ -16,6 +22,7 @@ export function ReviewPage() {
     documents,
     assessment,
     setToken,
+    documentSessionId,
   } = useKioskSession()
 
   const drafted = useMemo(
@@ -43,10 +50,9 @@ export function ReviewPage() {
         redFlag: assessment?.triggered ?? false,
         flags: (assessment?.reasons ?? []).map((reason) => tx(reason)),
         complaintId,
+        clinicalHistory: toClinicalHistoryPatch(drafted, values),
         answers,
-        documentIds: documents
-          .map((document) => document.remoteId)
-          .filter((id): id is string => Boolean(id)),
+        documentSessionId,
       })
       setToken(receipt.token)
       navigate("/kiosk/complete")

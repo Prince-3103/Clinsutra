@@ -23,8 +23,14 @@ export interface UseDocumentUploadResult {
  * this hook is unchanged.
  */
 export function useDocumentUpload(): UseDocumentUploadResult {
-  const { documents, addDocument, updateDocument, removeDocument, getFile } =
-    useKioskSession()
+  const {
+    documents,
+    addDocument,
+    updateDocument,
+    removeDocument,
+    getFile,
+    documentSessionId,
+  } = useKioskSession()
   const [errors, setErrors] = useState<LocalizedText[]>([])
   const [processing, setProcessing] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
@@ -65,6 +71,7 @@ export function useDocumentUpload(): UseDocumentUploadResult {
             getFile(document.id),
             {
               signal: controller.signal,
+              documentSessionId,
               onStage: (stage, progress) =>
                 updateDocument(document.id, { stage, progress }),
             },
@@ -73,10 +80,6 @@ export function useDocumentUpload(): UseDocumentUploadResult {
             stage: "complete",
             progress: 100,
             extraction,
-            // The backend's own id for this document — see `remoteId` on
-            // `UploadedDocument`. In mock mode this equals `document.id`
-            // already, so this is a no-op there.
-            remoteId: extraction.documentId,
           })
         } catch {
           // One bad document must not stall the rest of the queue.
@@ -91,7 +94,7 @@ export function useDocumentUpload(): UseDocumentUploadResult {
       setProcessing(false)
       abortRef.current = null
     }
-  }, [documents, getFile, updateDocument])
+  }, [documents, getFile, updateDocument, documentSessionId])
 
   return {
     errors,
