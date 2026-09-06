@@ -1,5 +1,7 @@
 import { CURRENT_DOCTOR, MOCK_PATIENTS } from "@/data"
 import type {
+  Answer,
+  ComplaintId,
   Doctor,
   Patient,
   PatientIdentification,
@@ -20,6 +22,16 @@ export interface KioskSubmission {
   priority: Priority
   redFlag: boolean
   flags: string[]
+  /**
+   * Interview + document context for the handoff, so the backend can build
+   * the Interview/InterviewAnswer records and link already-uploaded
+   * documents to the new patient in the same call. Optional so the mock
+   * path (which only builds a `Patient` row) is unaffected.
+   */
+  complaintId?: ComplaintId | null
+  answers?: Answer[]
+  /** `UploadedDocument.remoteId` for every document from this kiosk visit. */
+  documentIds?: string[]
 }
 
 export interface SubmissionReceipt {

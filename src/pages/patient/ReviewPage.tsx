@@ -42,6 +42,11 @@ export function ReviewPage() {
         priority: assessment?.priority ?? "P3",
         redFlag: assessment?.triggered ?? false,
         flags: (assessment?.reasons ?? []).map((reason) => tx(reason)),
+        complaintId,
+        answers,
+        documentIds: documents
+          .map((document) => document.remoteId)
+          .filter((id): id is string => Boolean(id)),
       })
       setToken(receipt.token)
       navigate("/kiosk/complete")

@@ -38,6 +38,13 @@ export interface UploadedDocument {
   error?: string
   /** Populated once the mock pipeline finishes. */
   extraction?: DocumentExtraction
+  /**
+   * The id FastAPI assigned to this document (`extraction.documentId`),
+   * distinct from `id` above which is generated client-side before upload.
+   * Kiosk submission sends this — not `id` — so the backend can link the
+   * already-uploaded document to the new patient record.
+   */
+  remoteId?: string
 }
 
 /** What the OCR + extraction step returns. Mocked today, backend-supplied later. */

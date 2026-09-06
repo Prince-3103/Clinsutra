@@ -73,6 +73,10 @@ export function useDocumentUpload(): UseDocumentUploadResult {
             stage: "complete",
             progress: 100,
             extraction,
+            // The backend's own id for this document — see `remoteId` on
+            // `UploadedDocument`. In mock mode this equals `document.id`
+            // already, so this is a no-op there.
+            remoteId: extraction.documentId,
           })
         } catch {
           // One bad document must not stall the rest of the queue.
