@@ -1,0 +1,10 @@
+{
+  "description": "AI-powered patient case-taking software streamlining medical history collection for patients and doctors in Indian hospitals, enhancing efficiency and accuracy.",
+  "robots": {
+    "index": false
+  },
+  "accessibility": {
+    "addBypassLinks": false,
+    "ignoreReducedMotion": false
+  }
+}
