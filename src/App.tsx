@@ -33,7 +33,7 @@ export default function App() {
     <BrowserRouter>
       <ErrorBoundary>
         <KioskSessionProvider>
-          {import.meta.env.DEV && <DemoModeSwitcher />}
+          <DemoModeSwitcher />
 
           <Routes>
             <Route path="/" element={<Navigate to="/kiosk" replace />} />
