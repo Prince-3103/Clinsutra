@@ -14,6 +14,35 @@ const BREADCRUMB: Record<string, string> = {
   "/doctor/alerts": "Alerts & Flags",
 }
 
+/**
+ * Which patient's chart the summary/timeline/alerts screens show is kept
+ * here rather than in the URL. That's fine for navigating between doctor
+ * screens, but a hard page refresh remounts `DoctorLayout` and would
+ * otherwise silently fall back to `DEFAULT_PATIENT_ID` (a seeded demo id) —
+ * which doesn't exist once the app is talking to a real, non-empty backend.
+ * That reset is what made edits look like they "didn't persist": the save
+ * worked, but the refreshed page was quietly showing a different patient.
+ * Session storage survives the remount without changing the URL scheme.
+ */
+const SELECTED_PATIENT_KEY = "clinsutra:selectedPatientId"
+
+function readStoredPatientId(): string {
+  try {
+    return sessionStorage.getItem(SELECTED_PATIENT_KEY) || DEFAULT_PATIENT_ID
+  } catch {
+    return DEFAULT_PATIENT_ID
+  }
+}
+
+function storePatientId(patientId: string): void {
+  try {
+    sessionStorage.setItem(SELECTED_PATIENT_KEY, patientId)
+  } catch {
+    // Private browsing / storage disabled — selection just won't survive a
+    // refresh, which is no worse than before this fix.
+  }
+}
+
 export function DoctorLayout() {
   const navigate = useNavigate()
   const { pathname } = useLocation()
@@ -22,7 +51,7 @@ export function DoctorLayout() {
   const [patients, setPatients] = useState<Patient[]>([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState("")
-  const [selectedPatientId, setSelectedPatientId] = useState(DEFAULT_PATIENT_ID)
+  const [selectedPatientId, setSelectedPatientId] = useState<string>(readStoredPatientId)
   const [reloadToken, setReloadToken] = useState(0)
 
   useEffect(() => {
@@ -53,6 +82,7 @@ export function DoctorLayout() {
   const selectPatient = useCallback(
     (patientId: string) => {
       setSelectedPatientId(patientId)
+      storePatientId(patientId)
       navigate("/doctor/summary")
     },
     [navigate],
@@ -62,7 +92,7 @@ export function DoctorLayout() {
     () => ({
       waiting: patients.filter((p) => p.status === "Waiting").length,
       seen: patients.filter((p) => p.status === "Completed").length,
-      flags: patients.filter((p) => p.redFlag).length,
+      flags: patients.filter((p) => p.redFlag && !p.redFlagResolved).length,
     }),
     [patients],
   )

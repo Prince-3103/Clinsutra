@@ -23,7 +23,7 @@ export function PatientRow({ patient, onOpen }: PatientRowProps) {
       aria-label={`Open history for ${patient.name}`}
       className={cn(
         "grid grid-cols-[auto_1fr] gap-3 items-start bg-white border rounded-2xl px-4 py-3 hover:border-[#0A6E8A] transition-all cursor-pointer lg:grid-cols-[48px_1fr_1fr_100px_80px_100px_120px] lg:items-center",
-        patient.redFlag ? "border-[#FCA5A5] bg-[#FFF5F5]" : "border-[#D1E4ED]",
+        patient.redFlag && !patient.redFlagResolved ? "border-[#FCA5A5] bg-[#FFF5F5]" : "border-[#D1E4ED]",
       )}
     >
       <PriorityDot level={patient.priority} />

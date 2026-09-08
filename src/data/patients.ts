@@ -19,6 +19,7 @@ export const MOCK_PATIENTS: Patient[] = [
     waitTime: "8 min",
     redFlag: true,
     flags: ["Chest pain with radiation", "Diaphoresis reported"],
+    redFlagResolved: false,
     submittedAt: "2026-09-06T09:12:00+05:30",
   },
   {
@@ -34,6 +35,7 @@ export const MOCK_PATIENTS: Patient[] = [
     waitTime: "14 min",
     redFlag: false,
     flags: [],
+    redFlagResolved: false,
     submittedAt: "2026-09-06T09:06:00+05:30",
   },
   {
@@ -49,6 +51,7 @@ export const MOCK_PATIENTS: Patient[] = [
     waitTime: "22 min",
     redFlag: false,
     flags: ["Known COPD"],
+    redFlagResolved: false,
     submittedAt: "2026-09-06T08:58:00+05:30",
   },
   {
@@ -64,6 +67,7 @@ export const MOCK_PATIENTS: Patient[] = [
     waitTime: "—",
     redFlag: false,
     flags: [],
+    redFlagResolved: false,
     submittedAt: "2026-09-06T08:31:00+05:30",
   },
   {
@@ -79,6 +83,7 @@ export const MOCK_PATIENTS: Patient[] = [
     waitTime: "—",
     redFlag: false,
     flags: [],
+    redFlagResolved: false,
     submittedAt: "2026-09-06T08:44:00+05:30",
   },
 ]

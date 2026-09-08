@@ -29,6 +29,10 @@ class PatientOut(CamelModel):
     wait_time: str
     red_flag: bool
     flags: list[str]
+    # True once a doctor has explicitly marked the patient reviewed. The
+    # underlying triage result (`priority`, `red_flag`, `flags`) is preserved
+    # for the audit trail regardless of this flag.
+    red_flag_resolved: bool = False
     submitted_at: dt.datetime
 
 
@@ -70,3 +74,6 @@ class SubmissionReceipt(CamelModel):
 
 class StatusUpdate(CamelModel):
     status: str
+    # Set by the "Mark as Reviewed" action. Never set automatically by AI —
+    # only a doctor's explicit click reaches this endpoint with it True.
+    resolve_red_flag: bool = False

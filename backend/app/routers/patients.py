@@ -32,7 +32,7 @@ def get_patient(patient_id: str, db: Session = Depends(get_db)):
 def update_patient_status(patient_id: str, body: StatusUpdate, db: Session = Depends(get_db)):
     if body.status not in ("Waiting", "In Consultation", "Completed"):
         raise HTTPException(status_code=422, detail="Invalid status")
-    patient = patient_service.update_status(db, patient_id, body.status)
+    patient = patient_service.update_status(db, patient_id, body.status, body.resolve_red_flag)
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     return patient

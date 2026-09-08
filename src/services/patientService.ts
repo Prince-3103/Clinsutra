@@ -140,6 +140,7 @@ export const patientService = {
       waitTime: "just now",
       redFlag: submission.redFlag,
       flags: submission.flags,
+      redFlagResolved: false,
       submittedAt,
     }
 
@@ -147,17 +148,36 @@ export const patientService = {
     return { token, patientId: patient.id, submittedAt }
   },
 
-  async updateStatus(id: string, status: Patient["status"]): Promise<Patient> {
+  /**
+   * Updates a patient's status via the one existing status endpoint.
+   *
+   * `resolveRedFlag: true` is how the doctor's "Mark as Reviewed" action
+   * (see ClinicalSummaryPage) resolves the active triage alert — it never
+   * touches `priority`/`redFlag`/`flags`, so the original P1/P2/P3 result
+   * and the red-flag reason stay in the record for the audit trail. AI code
+   * must never call this with `resolveRedFlag: true` — only a doctor's
+   * explicit click does.
+   */
+  async updateStatus(
+    id: string,
+    status: Patient["status"],
+    options: { resolveRedFlag?: boolean } = {},
+  ): Promise<Patient> {
     if (!API_CONFIG.useMock) {
       return request<Patient>(`/patients/${id}/status`, {
         method: "PATCH",
-        body: { status },
+        body: { status, resolveRedFlag: options.resolveRedFlag ?? false },
       })
     }
     await delay(80)
     queue = queue.map((patient) =>
       patient.id === id
-        ? { ...patient, status, waitTime: status === "Completed" ? "—" : patient.waitTime }
+        ? {
+            ...patient,
+            status,
+            waitTime: status === "Completed" ? "—" : patient.waitTime,
+            redFlagResolved: options.resolveRedFlag ? true : patient.redFlagResolved,
+          }
         : patient,
     )
     const updated = queue.find((patient) => patient.id === id)

@@ -34,6 +34,23 @@ class ClinicalHistory(Base):
     review_of_systems: Mapped[str] = mapped_column(Text, default="")
     investigations_summary: Mapped[str] = mapped_column(Text, default="")
 
+    # AI-assisted summary fields (see app/services/ai_service.py). Editable
+    # and persisted through the same PATCH endpoint as every other field
+    # here — generating a draft never writes to the database by itself, only
+    # a doctor's Save/Confirm & Save does.
+    #
+    # `nullable=True` on all four matches the migration (b28d5f1a9c6e): MySQL
+    # rejects a literal DEFAULT on TEXT/JSON columns, so these can't be
+    # NOT NULL with a server-side default. `default=` below is applied by
+    # SQLAlchemy in Python for every row *this app* writes, so new records
+    # still always get "" / [] rather than NULL — only rows written before
+    # this migration existed can have NULL here (handled in
+    # clinical_service._history_to_out).
+    key_symptoms: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=True)
+    risk_indicators: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=True)
+    suggested_questions: Mapped[list[str]] = mapped_column(JSON, default=list, nullable=True)
+    clinical_summary: Mapped[str] = mapped_column(Text, default="", nullable=True)
+
     # True until a clinician confirms the draft — see confirmHistory().
     ai_generated: Mapped[bool] = mapped_column(default=True)
     confirmed_by_clinician: Mapped[bool] = mapped_column(default=False)

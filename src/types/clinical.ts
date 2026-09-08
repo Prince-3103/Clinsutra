@@ -124,10 +124,40 @@ export interface ClinicalHistory {
   personalHistory: string
   reviewOfSystems: string
   investigationsSummary: string
+  /** AI-assisted summary fields (see aiService.generateClinicalSummary). Editable like every other field here; persisted through the same saveHistory PATCH. */
+  keySymptoms: string[]
+  riskIndicators: string[]
+  suggestedQuestions: string[]
+  clinicalSummary: string
   /** True until a clinician has reviewed and confirmed the draft. */
   aiGenerated: boolean
   confirmedByClinician: boolean
   updatedAt: IsoDate
+}
+
+/** One AI-generated (or deterministically-generated) clinical summary draft. Never persisted by generating it — only Save/Confirm & Save does that. */
+export interface AiClinicalSummary {
+  chiefComplaint: string
+  historyPresentIllness: string
+  keySymptoms: string[]
+  riskIndicators: string[]
+  suggestedQuestions: string[]
+  clinicalSummary: string
+  /** "ai" when Gemini produced this, "fallback" when it didn't (no key, timeout, error, malformed response). Never shown to the doctor as "AI-generated" when this is "fallback". */
+  source: "ai" | "fallback"
+}
+
+export interface AdaptiveQuestionTurn {
+  question: string
+  answer: string
+}
+
+/** Next adaptive follow-up question for the kiosk interview (see aiService.getAdaptiveQuestion). */
+export interface AdaptiveQuestion {
+  question: string | null
+  questionNumber: number
+  isFinal: boolean
+  source: "ai" | "fallback"
 }
 
 export type TimelineEventType =

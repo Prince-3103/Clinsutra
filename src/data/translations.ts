@@ -60,6 +60,7 @@ const en = {
   "patientId.gender.other": "Other",
   "patientId.helpAudio": "Need help? Tap for audio guidance",
   "patientId.validation": "Enter an ABHA ID, a registration number, or your name to continue.",
+  "patientId.validationDemographic": "Please also enter age, gender, or a phone number so we can identify the patient.",
 
   "interview.badge": "Question {current} of {total}",
   "interview.prompt": "What problem are you experiencing today?",
@@ -203,6 +204,7 @@ const hi: Record<TranslationKey, string> = {
   "patientId.gender.other": "अन्य",
   "patientId.helpAudio": "सहायता? ऑडियो निर्देश के लिए टैप करें",
   "patientId.validation": "जारी रखने के लिए ABHA ID, पंजीकरण संख्या या अपना नाम दर्ज करें।",
+  "patientId.validationDemographic": "कृपया आयु, लिंग या फोन नंबर भी दर्ज करें ताकि रोगी की पहचान की जा सके।",
 
   "interview.badge": "प्रश्न {current} / {total}",
   "interview.prompt": "आज आप किस समस्या का अनुभव कर रहे हैं?",

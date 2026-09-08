@@ -38,6 +38,13 @@ export interface Patient {
   redFlag: boolean
   /** Short triage flag labels shown as badges in the queue. */
   flags: string[]
+  /**
+   * True once a doctor has explicitly clicked "Mark as Reviewed". Never set
+   * by AI. The original `priority`/`redFlag`/`flags` triage result is never
+   * changed by this — it only stops the queue from still treating the
+   * patient as an active, unreviewed red-flag case.
+   */
+  redFlagResolved: boolean
   /** When the kiosk submission was received. */
   submittedAt: IsoDate
 }

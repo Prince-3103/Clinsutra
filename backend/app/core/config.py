@@ -35,6 +35,16 @@ class Settings(BaseSettings):
     doctor_room: str = "OPD 3"
     doctor_initials: str = "A"
 
+    # Gemini is the current MVP LLM provider (see app/services/ai_service.py).
+    # Empty by default on purpose: with no key set, the AI service treats
+    # itself as unconfigured and every AI endpoint falls back to
+    # deterministic behaviour instead of failing — the app must work with
+    # zero AI setup. The key never leaves the backend (never sent to, or
+    # read from, the frontend).
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
+    gemini_timeout_seconds: float = 12.0
+
     @property
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.frontend_url.split(",") if origin.strip()]

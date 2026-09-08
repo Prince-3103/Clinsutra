@@ -5,13 +5,16 @@ from sqlalchemy.orm import Session
 
 from app.core.database import get_db
 from app.schemas.clinical import (
+    AdaptiveQuestionOut,
+    AdaptiveQuestionRequest,
     ClinicalAlertOut,
     ClinicalHistoryOut,
     ClinicalHistoryPatch,
+    ClinicalSummaryOut,
     TimelineEventOut,
     VitalObservationOut,
 )
-from app.services import clinical_service
+from app.services import ai_service, clinical_service
 
 router = APIRouter(tags=["clinical"])
 
@@ -42,3 +45,29 @@ def get_alerts(patient_id: str, db: Session = Depends(get_db)):
 @router.get("/patients/{patient_id}/vitals", response_model=list[VitalObservationOut])
 def get_vitals(patient_id: str, db: Session = Depends(get_db)):
     return clinical_service.get_vitals(db, patient_id)
+
+
+@router.post("/ai/adaptive-question", response_model=AdaptiveQuestionOut)
+def adaptive_question(body: AdaptiveQuestionRequest):
+    """Next adaptive follow-up question for the kiosk interview (Gemini).
+
+    Never used to diagnose or triage — see app/services/ai_service.py. Never
+    raises: on any Gemini failure it returns `source: "fallback"` with
+    `question: null`, and the kiosk falls back to the predefined bank.
+    """
+    return ai_service.generate_adaptive_question(
+        complaint=body.complaint,
+        language=body.language,
+        history=[turn.model_dump() for turn in body.history],
+    )
+
+
+@router.post("/patients/{patient_id}/ai-summary", response_model=ClinicalSummaryOut)
+def ai_summary(patient_id: str, db: Session = Depends(get_db)):
+    """Generates a draft AI-assisted clinical summary from what's already on
+    file (Gemini). Read-only — nothing is persisted until the doctor Saves
+    or Confirms & Saves through `PATCH /patients/{id}/history`."""
+    result = clinical_service.generate_ai_summary(db, patient_id)
+    if result is None:
+        raise HTTPException(status_code=404, detail="Patient not found")
+    return result

@@ -7,6 +7,9 @@ import {
   MOCK_VITALS,
 } from "@/data"
 import type {
+  AdaptiveQuestion,
+  AdaptiveQuestionTurn,
+  AiClinicalSummary,
   Answer,
   ClinicalAlert,
   ClinicalHistory,
@@ -81,6 +84,22 @@ export const clinicalService = {
     patientId: string,
     patch: Partial<ClinicalHistory>,
   ): Promise<ClinicalHistory> {
+    // THE SAVE BUG: this used to build `base`/`updated` — which only exist to
+    // support the mock branch below — before checking `useMock` at all. Since
+    // `historyEdits` starts empty and a real patient id is never a key in
+    // `MOCK_HISTORIES`, that lookup's fallback threw on every single real-mode
+    // save, regardless of whether the PATCH request that follows would have
+    // succeeded. The FastAPI endpoint and MySQL side were always correct —
+    // this function just never reached the `request()` call. Checking the
+    // mode first, and only doing the mock-local computation inside the mock
+    // branch, is the fix.
+    if (!API_CONFIG.useMock) {
+      return request<ClinicalHistory>(`/patients/${patientId}/history`, {
+        method: "PATCH",
+        body: patch,
+      })
+    }
+
     const base =
       historyEdits.get(patientId) ??
       MOCK_HISTORIES[patientId] ??
@@ -93,13 +112,6 @@ export const clinicalService = {
       ...patch,
       patientId,
       updatedAt: new Date().toISOString(),
-    }
-
-    if (!API_CONFIG.useMock) {
-      return request<ClinicalHistory>(`/patients/${patientId}/history`, {
-        method: "PATCH",
-        body: patch,
-      })
     }
 
     await delay(220)
@@ -136,6 +148,69 @@ export const clinicalService = {
     }
     await delay(90)
     return MOCK_VITALS[patientId] ?? []
+  },
+
+  /**
+   * Generates an AI-assisted clinical summary draft (Gemini on the backend;
+   * see backend/app/services/ai_service.py). Read-only — this never saves
+   * anything by itself. The doctor reviews the returned draft on
+   * `/doctor/summary`, edits it, and only Save/Confirm & Save (`saveHistory`
+   * above) persists it, through the one existing PATCH endpoint.
+   *
+   * `source` is always "ai" or "fallback" — never fake "AI-generated" status
+   * when Gemini didn't actually run.
+   */
+  async generateAiSummary(patientId: string): Promise<AiClinicalSummary> {
+    if (!API_CONFIG.useMock) {
+      return request<AiClinicalSummary>(`/patients/${patientId}/ai-summary`, {
+        method: "POST",
+      })
+    }
+    await delay(300)
+    const history = historyEdits.get(patientId) ?? MOCK_HISTORIES[patientId]
+    if (!history) {
+      return {
+        chiefComplaint: "",
+        historyPresentIllness: "",
+        keySymptoms: [],
+        riskIndicators: [],
+        suggestedQuestions: [],
+        clinicalSummary: "",
+        source: "fallback",
+      }
+    }
+    return {
+      chiefComplaint: history.chiefComplaint,
+      historyPresentIllness: history.historyOfPresentIllness,
+      keySymptoms: [],
+      riskIndicators: [],
+      suggestedQuestions: [],
+      clinicalSummary: `Patient reports: ${history.chiefComplaint}. ${history.historyOfPresentIllness}`,
+      source: "fallback",
+    }
+  },
+
+  /**
+   * Next adaptive follow-up question for the kiosk interview (Gemini). Never
+   * used to diagnose or determine triage — the deterministic red-flag rules
+   * in `assessRedFlags` above are unaffected by this and remain the sole
+   * source of P1/P2/P3. On any failure (including mock mode, which has no
+   * LLM to call), `source` is "fallback" and `question` is null — callers
+   * fall back to `getFollowUpQuestions`'s predefined bank in that case.
+   */
+  async getAdaptiveQuestion(
+    complaint: string,
+    language: string,
+    history: AdaptiveQuestionTurn[],
+  ): Promise<AdaptiveQuestion> {
+    if (!API_CONFIG.useMock) {
+      return request<AdaptiveQuestion>("/ai/adaptive-question", {
+        method: "POST",
+        body: { complaint, language, history },
+      })
+    }
+    await delay(200)
+    return { question: null, questionNumber: history.length + 1, isFinal: true, source: "fallback" }
   },
 
   /** Test/demo helper — drops in-session clinician edits. */

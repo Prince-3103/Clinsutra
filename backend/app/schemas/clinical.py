@@ -85,6 +85,10 @@ class ClinicalHistoryPatch(CamelModel):
     personal_history: str | None = None
     review_of_systems: str | None = None
     investigations_summary: str | None = None
+    key_symptoms: list[str] | None = None
+    risk_indicators: list[str] | None = None
+    suggested_questions: list[str] | None = None
+    clinical_summary: str | None = None
     ai_generated: bool | None = None
     confirmed_by_clinician: bool | None = None
 
@@ -101,9 +105,44 @@ class ClinicalHistoryOut(CamelModel):
     personal_history: str
     review_of_systems: str
     investigations_summary: str
+    key_symptoms: list[str] = []
+    risk_indicators: list[str] = []
+    suggested_questions: list[str] = []
+    clinical_summary: str = ""
     ai_generated: bool
     confirmed_by_clinician: bool
     updated_at: dt.datetime
+
+
+class AdaptiveQuestionTurn(CamelModel):
+    question: str
+    answer: str
+
+
+class AdaptiveQuestionRequest(CamelModel):
+    complaint: str
+    language: str = "en"
+    history: list[AdaptiveQuestionTurn] = []
+
+
+class AdaptiveQuestionOut(CamelModel):
+    question: str | None
+    question_number: int
+    is_final: bool
+    # "ai" when Gemini produced the question, "fallback" when it didn't —
+    # the kiosk falls back to the predefined question bank when this is
+    # "fallback" and `question` is null.
+    source: str
+
+
+class ClinicalSummaryOut(CamelModel):
+    chief_complaint: str
+    history_present_illness: str
+    key_symptoms: list[str]
+    risk_indicators: list[str]
+    suggested_questions: list[str]
+    clinical_summary: str
+    source: str
 
 
 class TimelineEventOut(CamelModel):

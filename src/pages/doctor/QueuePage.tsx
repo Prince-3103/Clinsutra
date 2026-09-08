@@ -26,7 +26,10 @@ export function QueuePage() {
     })
   }, [patients, filter, search])
 
-  const flagged = patients.filter((patient) => patient.redFlag)
+  // Reviewed red-flag patients keep their historical `redFlag`/`priority`
+  // for the audit trail, but drop out of this "needs urgent review" banner
+  // once a doctor has explicitly marked them reviewed.
+  const flagged = patients.filter((patient) => patient.redFlag && !patient.redFlagResolved)
 
   return (
     <div className="p-4 flex flex-col gap-5 h-full overflow-y-auto sm:p-6">

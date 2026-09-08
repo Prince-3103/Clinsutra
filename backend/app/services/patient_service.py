@@ -48,6 +48,7 @@ def to_patient_out(patient: Patient) -> dict:
         "waitTime": _wait_time(patient),
         "redFlag": patient.red_flag,
         "flags": patient.flags or [],
+        "redFlagResolved": patient.red_flag_resolved,
         "submittedAt": patient.submitted_at,
     }
 
@@ -203,11 +204,17 @@ def submit_kiosk_session(db: Session, submission: KioskSubmission) -> dict:
     return {"token": token, "patientId": patient.id, "submittedAt": submitted_at}
 
 
-def update_status(db: Session, patient_id: str, status: str) -> dict | None:
+def update_status(db: Session, patient_id: str, status: str, resolve_red_flag: bool = False) -> dict | None:
     patient = db.get(Patient, patient_id)
     if not patient:
         return None
     patient.status = status
+    # Doctor-initiated only (see routers/patients.py + the "Mark as Reviewed"
+    # flow). This never touches `priority`, `red_flag` or `flags` — the
+    # original triage result stays intact for the audit trail; it only stops
+    # the queue from still treating the patient as an active red-flag case.
+    if resolve_red_flag:
+        patient.red_flag_resolved = True
     db.commit()
     db.refresh(patient)
     return to_patient_out(patient)

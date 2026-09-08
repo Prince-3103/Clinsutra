@@ -45,6 +45,12 @@ class Patient(Base):
     complaint: Mapped[str] = mapped_column(Text)
     red_flag: Mapped[bool] = mapped_column(default=False)
     flags: Mapped[list[str]] = mapped_column(JSON, default=list)
+    # True once a doctor has explicitly marked the patient reviewed (see
+    # `POST /patients/{id}/status` with `resolveRedFlag`). The original
+    # `red_flag` / `flags` / `priority` triage result is never overwritten —
+    # this only controls whether the queue's "needs urgent review" banner
+    # still treats the patient as active.
+    red_flag_resolved: Mapped[bool] = mapped_column(default=False)
 
     submitted_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True))
     created_at: Mapped[dt.datetime] = mapped_column(DateTime(timezone=True), default=dt.datetime.utcnow)

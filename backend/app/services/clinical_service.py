@@ -6,8 +6,18 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.data import CHIEF_COMPLAINT_QUESTION, COMPLAINTS, is_complaint_id
-from app.models import Allergy, ClinicalAlert, ClinicalHistory, Medication, TimelineEvent, VitalObservation
+from app.models import (
+    Allergy,
+    ClinicalAlert,
+    ClinicalHistory,
+    Interview,
+    Medication,
+    Patient,
+    TimelineEvent,
+    VitalObservation,
+)
 from app.schemas.clinical import ClinicalHistoryPatch
+from app.services import ai_service
 
 
 def get_opening_question() -> dict:
@@ -38,6 +48,14 @@ def _history_to_out(history: ClinicalHistory) -> dict:
         "personalHistory": history.personal_history,
         "reviewOfSystems": history.review_of_systems,
         "investigationsSummary": history.investigations_summary,
+        "keySymptoms": history.key_symptoms or [],
+        "riskIndicators": history.risk_indicators or [],
+        "suggestedQuestions": history.suggested_questions or [],
+        # `or ""` covers rows written before the AI-summary migration
+        # (b28d5f1a9c6e), which have NULL here rather than "" — the column
+        # is nullable (MySQL disallows a TEXT column DEFAULT), so this can't
+        # rely on a DB-level default.
+        "clinicalSummary": history.clinical_summary or "",
         "aiGenerated": history.ai_generated,
         "confirmedByClinician": history.confirmed_by_clinician,
         "updatedAt": history.updated_at,
@@ -88,6 +106,43 @@ def save_history(db: Session, patient_id: str, patch: ClinicalHistoryPatch) -> d
     db.commit()
     db.refresh(history)
     return _history_to_out(history)
+
+
+def generate_ai_summary(db: Session, patient_id: str) -> dict | None:
+    """Assembles what's already on file for this patient — complaint,
+    existing history, structured interview answers, and the deterministic
+    triage flags — and asks `ai_service` for a structured clinical summary.
+
+    Read-only: this never writes to the database by itself. The doctor
+    reviews the draft on `/doctor/summary` and only Save/Confirm & Save
+    (the existing PATCH endpoint) persists anything.
+    """
+    patient = db.get(Patient, patient_id)
+    if not patient:
+        return None
+
+    history = db.get(ClinicalHistory, patient_id)
+    interview = db.scalars(
+        select(Interview).where(Interview.patient_id == patient_id).order_by(Interview.created_at.desc())
+    ).first()
+
+    raw_answers = []
+    complaint_id = interview.complaint_id if interview else None
+    if interview:
+        raw_answers = [
+            {"questionId": a.question_id, "optionIds": a.option_ids, "transcript": a.transcript}
+            for a in interview.answers
+        ]
+    qa_pairs = ai_service.resolve_answer_labels(complaint_id, raw_answers)
+
+    result = ai_service.generate_clinical_summary(
+        complaint=patient.complaint,
+        complaint_id=complaint_id,
+        history_of_present_illness=history.history_of_present_illness if history else "",
+        qa_pairs=qa_pairs,
+        risk_flags=patient.flags or [],
+    )
+    return result
 
 
 def get_timeline(db: Session, patient_id: str) -> list[dict]:

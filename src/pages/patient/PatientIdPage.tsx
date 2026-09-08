@@ -27,15 +27,32 @@ export function PatientIdPage() {
     "w-full border-2 border-[#D1E4ED] rounded-2xl px-4 py-3 text-base font-mono text-[#0D1B2A] focus:outline-none focus:border-[#0A6E8A] placeholder:text-[#C0D4DF] sm:px-5 sm:py-4 sm:text-xl"
 
   const handleContinue = () => {
-    const identified =
-      identification.abhaId.trim() !== "" ||
-      identification.hospitalRegNumber.trim() !== "" ||
-      identification.fullName.trim() !== ""
+    const hasAbhaOrReg =
+      identification.abhaId.trim() !== "" || identification.hospitalRegNumber.trim() !== ""
+    const hasName = identification.fullName.trim() !== ""
+    // A name alone isn't an identification — require at least one demographic
+    // detail (age, gender or phone) alongside it so a "New Patient" kiosk
+    // record is never just a bare name with nothing to contact or triage by.
+    const hasDemographic =
+      identification.age.trim() !== "" ||
+      identification.gender.trim() !== "" ||
+      identification.phone.trim() !== ""
 
-    if (!identified) {
+    if (hasAbhaOrReg) {
+      navigate("/kiosk/interview")
+      return
+    }
+
+    if (!hasName) {
       setError(t("patientId.validation"))
       return
     }
+
+    if (!hasDemographic) {
+      setError(t("patientId.validationDemographic"))
+      return
+    }
+
     navigate("/kiosk/interview")
   }
 
