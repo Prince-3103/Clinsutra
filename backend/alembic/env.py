@@ -2,8 +2,7 @@ import sys
 from logging.config import fileConfig
 from pathlib import Path
 
-from sqlalchemy import engine_from_config
-from sqlalchemy import pool
+from sqlalchemy import create_engine, pool
 
 from alembic import context
 
@@ -17,9 +16,17 @@ from app import models  # noqa: E402,F401  (populates Base.metadata)
 # access to the values within the .ini file in use.
 config = context.config
 
-# Single source of truth for the connection string: .env via Settings,
-# never a second copy hardcoded in alembic.ini.
-config.set_main_option("sqlalchemy.url", get_settings().database_url)
+# Single source of truth for the connection string: .env via Settings, never a
+# second copy hardcoded in alembic.ini.
+#
+# Deliberately NOT using `config.set_main_option("sqlalchemy.url", ...)` here:
+# that stores the value in alembic's underlying `configparser.ConfigParser`,
+# which treats "%" as interpolation syntax (`%(name)s`) and raises
+# `ValueError: invalid interpolation syntax` the moment a DB password contains
+# a percent-encoded character (e.g. `%40` for `@`) — which any real password
+# with punctuation in it will. Settings.database_url is used directly instead,
+# below, so the raw URL never passes through configparser at all.
+settings = get_settings()
 
 # Interpret the config file for Python logging.
 # This line sets up loggers basically.
@@ -46,9 +53,8 @@ def run_migrations_offline() -> None:
     script output.
 
     """
-    url = config.get_main_option("sqlalchemy.url")
     context.configure(
-        url=url,
+        url=settings.database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
@@ -65,11 +71,7 @@ def run_migrations_online() -> None:
     and associate a connection with the context.
 
     """
-    connectable = engine_from_config(
-        config.get_section(config.config_ini_section, {}),
-        prefix="sqlalchemy.",
-        poolclass=pool.NullPool,
-    )
+    connectable = create_engine(settings.database_url, poolclass=pool.NullPool)
 
     with connectable.connect() as connection:
         context.configure(
