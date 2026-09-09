@@ -45,6 +45,15 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.0-flash"
     gemini_timeout_seconds: float = 12.0
 
+    # Separate model id for the Gemini Live (bidirectional audio) session used
+    # by the voice relay (app/routers/voice.py). Live requires a *-live model —
+    # the plain `gemini_model` above is text-only and cannot be used here. Voice
+    # is speech-to-text only: the Live session's generative output is discarded,
+    # so Gemini never diagnoses or triages (deterministic triage stays
+    # authoritative). If this is unset or the session fails, the frontend falls
+    # back to the browser Web Speech engine.
+    gemini_live_model: str = "gemini-3.5-transcribe-live"
+
     @property
     def allowed_origins(self) -> list[str]:
         return [origin.strip() for origin in self.frontend_url.split(",") if origin.strip()]

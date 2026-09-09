@@ -8,6 +8,21 @@ alerts, plus `/docs` availability.
 import io
 
 
+def test_voice_live_signals_fallback_when_gemini_unconfigured(client, monkeypatch):
+    """The Gemini Live voice relay must degrade to the browser fallback when no
+    key is configured: it accepts the socket, tells the client `unsupported`,
+    and closes — it never errors or hangs. Forced unconfigured so the test is
+    hermetic regardless of any real GEMINI_API_KEY in the environment/.env."""
+    from app.services import ai_service
+
+    monkeypatch.setattr(ai_service, "is_configured", lambda *a, **k: False)
+
+    with client.websocket_connect("/api/voice/live?language=hi") as ws:
+        message = ws.receive_json()
+
+    assert message["type"] == "unsupported"
+
+
 def test_docs_available(client):
     response = client.get("/docs")
     assert response.status_code == 200

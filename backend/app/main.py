@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
-from app.routers import clinical, documents, interview, kiosk, patients
+from app.routers import clinical, documents, interview, kiosk, patients, voice
 
 settings = get_settings()
 logger = logging.getLogger("clinsutra")
@@ -66,6 +66,7 @@ app.include_router(kiosk.router, prefix="/api")
 app.include_router(interview.router, prefix="/api")
 app.include_router(clinical.router, prefix="/api")
 app.include_router(documents.router, prefix="/api")
+app.include_router(voice.router, prefix="/api")
 
 
 @app.get("/health", tags=["health"])

@@ -49,6 +49,13 @@ export function useSpeechRecognition(
   const [error, setError] = useState<VoiceError | null>(null)
 
   const engineRef = useRef<SpeechEngine | null>(null)
+  // Set when the active engine failed in a way that warrants trying the next
+  // engine in the list. Read in `onEnd` (which every engine fires after
+  // `onError`) so the hand-off happens with only one engine ever active.
+  const fallbackToRef = useRef<number | null>(null)
+  // Whether the active engine has produced any transcript yet. Once it has, a
+  // later error is surfaced rather than triggering a silent engine switch.
+  const producedResultRef = useRef(false)
   // Kept in a ref so `start` does not need to change identity when the caller
   // passes a new inline callback on every render.
   const onFinalResultRef = useRef(onFinalResult)
@@ -64,39 +71,74 @@ export function useSpeechRecognition(
   const start = useCallback(() => {
     if (listening) return
 
-    const engine = voiceService.resolveEngine()
-    if (!engine) {
+    const engineList = voiceService.resolveEngines()
+    if (engineList.length === 0) {
       setError({ code: "unsupported" })
       return
     }
 
-    engineRef.current = engine
     setError(null)
     setInterim("")
     setListening(true)
+    fallbackToRef.current = null
+    producedResultRef.current = false
 
-    engine.start({
-      language,
-      continuous,
-      onResult: ({ transcript: settled, interim: live, isFinal }) => {
-        setInterim(live)
-        if (!isFinal || !settled) return
-        setTranscript((current) => (current ? `${current} ${settled}` : settled))
-        onFinalResultRef.current?.(settled)
-      },
-      onError: (voiceError) => {
-        // "aborted" is what a deliberate stop looks like — not worth surfacing.
-        if (voiceError.code !== "aborted") setError(voiceError)
+    // Codes worth retrying on the next engine: the primary engine could not run
+    // here (unconfigured/SDK missing) or could not reach the relay (network /
+    // timeout). Permission / hardware / no-speech errors are surfaced as-is —
+    // the fallback engine would hit the same wall.
+    const isHandoffCode = (code: string) => code === "unsupported" || code === "network"
+
+    const runEngine = (index: number) => {
+      const engine = engineList[index]
+      if (!engine) {
         setListening(false)
-      },
-      onEnd: () => {
-        setListening(false)
-        setInterim("")
-      },
-    })
+        return
+      }
+      engineRef.current = engine
+
+      engine.start({
+        language,
+        continuous,
+        onResult: ({ transcript: settled, interim: live, isFinal }) => {
+          producedResultRef.current = true
+          setInterim(live)
+          if (!isFinal || !settled) return
+          setTranscript((current) => (current ? `${current} ${settled}` : settled))
+          onFinalResultRef.current?.(settled)
+        },
+        onError: (voiceError) => {
+          const canFallback =
+            isHandoffCode(voiceError.code) &&
+            !producedResultRef.current &&
+            index + 1 < engineList.length
+          if (canFallback) {
+            // Defer the switch to onEnd so the failed engine is fully torn down.
+            fallbackToRef.current = index + 1
+            return
+          }
+          // "aborted" is what a deliberate stop looks like — not worth surfacing.
+          if (voiceError.code !== "aborted") setError(voiceError)
+          setListening(false)
+        },
+        onEnd: () => {
+          if (fallbackToRef.current !== null) {
+            const next = fallbackToRef.current
+            fallbackToRef.current = null
+            runEngine(next)
+            return
+          }
+          setListening(false)
+          setInterim("")
+        },
+      })
+    }
+
+    runEngine(0)
   }, [continuous, language, listening])
 
   const stop = useCallback(() => {
+    fallbackToRef.current = null
     engineRef.current?.stop()
     setListening(false)
   }, [])
@@ -107,6 +149,7 @@ export function useSpeechRecognition(
   }, [listening, start, stop])
 
   const reset = useCallback(() => {
+    fallbackToRef.current = null
     engineRef.current?.abort()
     setListening(false)
     setTranscript("")

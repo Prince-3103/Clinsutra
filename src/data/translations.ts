@@ -71,6 +71,9 @@ const en = {
   "followup.aiAdapting": "AI is adapting questions based on your answer",
   "followup.speakAnswers": "Or speak your answers",
   "followup.answered": "{answered} of {total} answered",
+  "followup.checking": "Checking…",
+  "followup.continueError":
+    "Unable to continue. Please check the connection and try again.",
 
   "redflag.title": "Urgent Attention May Be Needed",
   "redflag.body":
@@ -148,6 +151,7 @@ const en = {
   "mic.audioCapture": "No microphone was found. Please tap an answer instead.",
   "mic.network": "Voice input needs a network connection right now.",
   "mic.error": "Voice input is unavailable at the moment. Please tap an answer.",
+  "voice.heard": 'I heard: "{text}". Please choose an option.',
 } as const
 
 export type TranslationKey = keyof typeof en
@@ -215,6 +219,9 @@ const hi: Record<TranslationKey, string> = {
   "followup.aiAdapting": "AI आपके उत्तर के आधार पर प्रश्न बदल रहा है",
   "followup.speakAnswers": "या बोलकर उत्तर दें",
   "followup.answered": "{total} में से {answered} उत्तर दिए गए",
+  "followup.checking": "जाँच हो रही है…",
+  "followup.continueError":
+    "जारी नहीं रख सके। कृपया कनेक्शन जांचें और पुनः प्रयास करें।",
 
   "redflag.title": "तत्काल ध्यान आवश्यक हो सकता है",
   "redflag.body":
@@ -290,6 +297,7 @@ const hi: Record<TranslationKey, string> = {
   "mic.audioCapture": "कोई माइक्रोफ़ोन नहीं मिला। कृपया उत्तर पर टैप करें।",
   "mic.network": "वॉइस इनपुट के लिए इस समय नेटवर्क कनेक्शन आवश्यक है।",
   "mic.error": "इस समय वॉइस इनपुट उपलब्ध नहीं है। कृपया उत्तर पर टैप करें।",
+  "voice.heard": 'मैंने सुना: "{text}"। कृपया एक विकल्प चुनें।',
 }
 
 export const translations: Record<Language, Record<TranslationKey, string>> = {

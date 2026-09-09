@@ -9,3 +9,9 @@ export {
 export { evaluateRedFlags, collectSignals } from "./redFlags"
 export { buildDraftSections, complaintSummary, toClinicalHistoryPatch } from "./summary"
 export type { DraftSection } from "./summary"
+export { matchSpokenOption } from "./matchOption"
+export type {
+  SpokenMatchStatus,
+  SpokenMatchCandidate,
+  SpokenMatchResult,
+} from "./matchOption"

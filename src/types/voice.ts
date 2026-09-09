@@ -35,9 +35,11 @@ export interface VoiceSessionOptions {
 /**
  * The contract every speech engine implements.
  *
- * The browser Web Speech API backs this today. A FastAPI-hosted engine
- * (Bhashini / AI4Bharat / Whisper) will implement the same interface, so
- * swapping engines touches `services/voiceService.ts` only — no UI changes.
+ * Two engines back this: `GeminiLiveEngine` (primary — streams audio to the
+ * FastAPI `/voice/live` relay fronting Gemini Live) and `BrowserSpeechEngine`
+ * (automatic fallback — the browser Web Speech API). Both live in
+ * `services/voiceService.ts`, so swapping or reordering engines touches that
+ * file only — no UI changes.
  */
 export interface SpeechEngine {
   readonly id: string

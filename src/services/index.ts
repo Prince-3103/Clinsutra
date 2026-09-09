@@ -9,4 +9,4 @@ export {
   PIPELINE_STAGES,
 } from "./documentService"
 export type { ProcessOptions } from "./documentService"
-export { voiceService, resolveEngine } from "./voiceService"
+export { voiceService, resolveEngine, resolveEngines } from "./voiceService"

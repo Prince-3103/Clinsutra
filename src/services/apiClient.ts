@@ -7,7 +7,13 @@
  */
 
 export const API_CONFIG = {
-  baseUrl: import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000/api",
+  // Relative by default so requests are same-origin as the page. This is what
+  // makes the kiosk work over a forwarded/tunnelled dev port on a phone:
+  // `localhost` there would mean the phone itself, and an absolute http:// URL
+  // under an https tunnel is blocked as mixed content. The Vite dev server
+  // proxies `/api` to the backend (see vite.config.ts); in other environments
+  // set VITE_API_BASE_URL to the backend's reachable URL.
+  baseUrl: import.meta.env.VITE_API_BASE_URL ?? "/api",
   /** While true, services resolve from `src/data` instead of the network. */
   useMock: (import.meta.env.VITE_USE_MOCK_API ?? "true") !== "false",
   timeoutMs: Number(import.meta.env.VITE_API_TIMEOUT_MS ?? 15000),

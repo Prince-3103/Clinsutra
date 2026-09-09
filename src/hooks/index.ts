@@ -11,4 +11,6 @@ export type {
 } from "./useSpeechRecognition"
 export { useDocumentUpload } from "./useDocumentUpload"
 export type { UseDocumentUploadResult } from "./useDocumentUpload"
+export { useSpokenOptionSelect } from "./useSpokenOptionSelect"
+export type { UseSpokenOptionSelectResult } from "./useSpokenOptionSelect"
 export type { KioskSessionValue, KioskSessionState } from "./kioskSessionContext"
