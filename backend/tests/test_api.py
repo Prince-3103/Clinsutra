@@ -145,6 +145,174 @@ def test_document_upload_then_kiosk_submission_reparents_it(client):
     assert single["id"] == patient_id
 
 
+DOCTOR_HEADERS = {"X-User-Role": "doctor"}
+
+
+def _submit_full_patient(client, name="Delete Me"):
+    """Creates a patient with dependent records (history + meds + allergies +
+    interview answers + a re-parented document) and returns its id."""
+    client.post(
+        "/api/documents",
+        files={"file": ("report.pdf", io.BytesIO(b"%PDF-1.4 fake"), "application/pdf")},
+        data={"docType": "lab", "documentSessionId": "sess-del"},
+    )
+    submission = client.post(
+        "/api/kiosk/submissions",
+        json={
+            "identification": {
+                "mode": "new",
+                "abhaId": "",
+                "hospitalRegNumber": "",
+                "fullName": name,
+                "age": "40",
+                "gender": "Male",
+                "phone": "",
+            },
+            "complaint": "Fever for 3 days",
+            "priority": "P2",
+            "redFlag": True,
+            "flags": ["High fever reported"],
+            "complaintId": "fever",
+            "clinicalHistory": {
+                "chiefComplaint": "Fever for 3 days",
+                "historyOfPresentIllness": "No rigors",
+                "medications": [{"name": "Paracetamol", "dose": "500mg", "frequency": "BD"}],
+                "allergies": [{"substance": "Penicillin", "reaction": "Rash", "severity": "moderate"}],
+            },
+            "answers": [
+                {
+                    "questionId": "fv-duration",
+                    "optionIds": ["fv-dur-3"],
+                    "answeredAt": "2026-01-01T00:00:00Z",
+                }
+            ],
+            "documentSessionId": "sess-del",
+        },
+    )
+    assert submission.status_code == 200
+    return submission.json()["patientId"]
+
+
+def _complete(client, patient_id):
+    resp = client.patch(f"/api/patients/{patient_id}/status", json={"status": "Completed"})
+    assert resp.status_code == 200
+
+
+def test_delete_completed_patient_removes_it_and_all_related_records(client, db_session):
+    from app.models import (
+        Allergy,
+        ClinicalHistory,
+        Document,
+        Interview,
+        InterviewAnswer,
+        Medication,
+        Patient,
+    )
+
+    patient_id = _submit_full_patient(client)
+    _complete(client, patient_id)
+
+    # Sanity: dependent rows exist before deletion.
+    assert db_session.get(Patient, patient_id) is not None
+    assert db_session.query(ClinicalHistory).filter_by(patient_id=patient_id).count() == 1
+    assert db_session.query(Medication).filter_by(patient_id=patient_id).count() == 1
+    assert db_session.query(Allergy).filter_by(patient_id=patient_id).count() == 1
+    interview_ids = [
+        i.id for i in db_session.query(Interview).filter_by(patient_id=patient_id).all()
+    ]
+    assert len(interview_ids) == 1
+    assert db_session.query(InterviewAnswer).filter(
+        InterviewAnswer.interview_id.in_(interview_ids)
+    ).count() == 1
+    assert db_session.query(Document).filter_by(patient_id=patient_id).count() == 1
+
+    response = client.delete(f"/api/patients/{patient_id}", headers=DOCTOR_HEADERS)
+    assert response.status_code == 204
+
+    # Patient and every dependent row are gone — no orphans.
+    db_session.expire_all()
+    assert db_session.get(Patient, patient_id) is None
+    assert db_session.query(ClinicalHistory).filter_by(patient_id=patient_id).count() == 0
+    assert db_session.query(Medication).filter_by(patient_id=patient_id).count() == 0
+    assert db_session.query(Allergy).filter_by(patient_id=patient_id).count() == 0
+    assert db_session.query(Interview).filter_by(patient_id=patient_id).count() == 0
+    assert db_session.query(InterviewAnswer).filter(
+        InterviewAnswer.interview_id.in_(interview_ids)
+    ).count() == 0
+    assert db_session.query(Document).filter_by(patient_id=patient_id).count() == 0
+
+    # Gone from the queue too, and a re-fetch 404s (won't come back on refresh).
+    assert all(p["id"] != patient_id for p in client.get("/api/patients").json())
+    assert client.get(f"/api/patients/{patient_id}").status_code == 404
+
+
+def test_delete_rejects_active_patient(client, db_session):
+    from app.models import Patient
+
+    patient_id = _submit_full_patient(client, name="Still Waiting")
+    # Left in the default "Waiting" state — an active patient.
+
+    response = client.delete(f"/api/patients/{patient_id}", headers=DOCTOR_HEADERS)
+    assert response.status_code == 409
+    # Untouched.
+    db_session.expire_all()
+    assert db_session.get(Patient, patient_id) is not None
+    assert any(p["id"] == patient_id for p in client.get("/api/patients").json())
+
+
+def test_delete_rejects_in_consultation_patient(client):
+    patient_id = _submit_full_patient(client, name="In Consult")
+    client.patch(f"/api/patients/{patient_id}/status", json={"status": "In Consultation"})
+    response = client.delete(f"/api/patients/{patient_id}", headers=DOCTOR_HEADERS)
+    assert response.status_code == 409
+
+
+def test_delete_requires_doctor_role(client, db_session):
+    from app.models import Patient
+
+    patient_id = _submit_full_patient(client, name="No Role")
+    _complete(client, patient_id)
+
+    # No role header -> rejected; patient stays.
+    assert client.delete(f"/api/patients/{patient_id}").status_code == 403
+    # Wrong role -> rejected.
+    assert client.delete(
+        f"/api/patients/{patient_id}", headers={"X-User-Role": "nurse"}
+    ).status_code == 403
+    db_session.expire_all()
+    assert db_session.get(Patient, patient_id) is not None
+
+
+def test_delete_unknown_patient_returns_404(client):
+    assert client.delete("/api/patients/OPD-9999", headers=DOCTOR_HEADERS).status_code == 404
+
+
+def test_delete_database_failure_is_handled_and_record_kept(client, db_session, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    from app.main import app
+    from app.models import Patient
+    from app.services import patient_service
+
+    patient_id = _submit_full_patient(client, name="DB Fail")
+    _complete(client, patient_id)
+
+    # Force the deletion to fail after the status/role checks pass.
+    def boom(db, pid):  # noqa: ANN001
+        raise RuntimeError("simulated database failure")
+
+    monkeypatch.setattr(patient_service, "delete_patient", boom)
+
+    # Don't re-raise server errors so we can assert the real 500 response the
+    # app returns (the get_db override from the `client` fixture stays active).
+    with TestClient(app, raise_server_exceptions=False) as raw:
+        response = raw.delete(f"/api/patients/{patient_id}", headers=DOCTOR_HEADERS)
+    assert response.status_code == 500
+    # The record must survive a failed delete (never pretend success).
+    db_session.expire_all()
+    assert db_session.get(Patient, patient_id) is not None
+
+
 def test_update_patient_status(client):
     submission = client.post(
         "/api/kiosk/submissions",

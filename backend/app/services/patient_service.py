@@ -204,6 +204,37 @@ def submit_kiosk_session(db: Session, submission: KioskSubmission) -> dict:
     return {"token": token, "patientId": patient.id, "submittedAt": submitted_at}
 
 
+# Only a finished consultation may be deleted. "Waiting" / "In Consultation"
+# are active states and are never deletable (enforced here, not just in the UI).
+DELETABLE_STATUSES = ("Completed",)
+
+
+def delete_patient(db: Session, patient_id: str) -> str:
+    """Permanently delete a patient and every dependent record, atomically.
+
+    Returns one of: "deleted", "not_found", "not_deletable". Every child row
+    (clinical history + its medications/allergies, interviews + their answers,
+    documents + their extraction fields, timeline events, alerts, vitals) is
+    removed via the ORM `all, delete-orphan` cascades configured on the Patient
+    relationships, so no orphans are left behind. The whole thing runs in one
+    transaction; any failure rolls back and re-raises so the caller can surface
+    an error and the record stays intact.
+    """
+    patient = db.get(Patient, patient_id)
+    if not patient:
+        return "not_found"
+    if patient.status not in DELETABLE_STATUSES:
+        return "not_deletable"
+
+    try:
+        db.delete(patient)  # cascades to all dependent rows
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    return "deleted"
+
+
 def update_status(db: Session, patient_id: str, status: str, resolve_red_flag: bool = False) -> dict | None:
     patient = db.get(Patient, patient_id)
     if not patient:

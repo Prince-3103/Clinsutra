@@ -5,7 +5,7 @@ import { EditableSection } from "@/components/doctor"
 import { useDoctorLayout } from "@/layouts"
 import { ApiError, clinicalService, patientService } from "@/services"
 import type { ClinicalAlert, ClinicalHistory } from "@/types"
-import { cn, formatTime, initialOf } from "@/utils"
+import { cn, formatDate, formatTime, initialOf } from "@/utils"
 
 type TextField =
   | "chiefComplaint"
@@ -52,7 +52,7 @@ function saveFailureMessage(error: unknown): string {
 
 export function ClinicalSummaryPage() {
   const navigate = useNavigate()
-  const { patients, selectedPatientId, refresh } = useDoctorLayout()
+  const { patients, selectedPatientId, refresh, clearSelectedPatient } = useDoctorLayout()
 
   const [history, setHistory] = useState<ClinicalHistory | null>(null)
   const [alerts, setAlerts] = useState<ClinicalAlert[]>([])
@@ -71,6 +71,10 @@ export function ClinicalSummaryPage() {
   const [generating, setGenerating] = useState(false)
   const [generateError, setGenerateError] = useState<string | null>(null)
 
+  const [deleteOpen, setDeleteOpen] = useState(false)
+  const [deleting, setDeleting] = useState(false)
+  const [deleteError, setDeleteError] = useState<string | null>(null)
+
   const patient = patients.find((entry) => entry.id === selectedPatientId)
 
   useEffect(() => {
@@ -82,6 +86,8 @@ export function ClinicalSummaryPage() {
     setReviewedJustNow(false)
     setAiSource(null)
     setGenerateError(null)
+    setDeleteOpen(false)
+    setDeleteError(null)
 
     Promise.all([
       clinicalService.getHistory(selectedPatientId),
@@ -219,6 +225,35 @@ export function ClinicalSummaryPage() {
     }
   }
 
+  /**
+   * Permanently deletes the patient record via the backend (which enforces the
+   * completed-state and doctor-role rules, and cascades to every dependent
+   * record). On success: close the modal, drop the patient from the queue,
+   * clear the selection, and navigate to the queue with a success message. On
+   * failure: keep the patient and the modal, and surface the error — never
+   * pretend it worked.
+   */
+  const handleDelete = async () => {
+    if (!patient) return
+    setDeleting(true)
+    setDeleteError(null)
+    try {
+      await patientService.deletePatient(patient.id)
+      setDeleteOpen(false)
+      refresh()
+      clearSelectedPatient()
+      navigate("/doctor/queue", {
+        state: { deletedPatientName: patient.name },
+      })
+    } catch {
+      setDeleteError(
+        "Couldn't delete this patient record — the server didn't confirm the deletion. Nothing was deleted; please try again.",
+      )
+    } finally {
+      setDeleting(false)
+    }
+  }
+
   if (loading) {
     return (
       <div className="p-4 flex flex-col gap-4 h-full overflow-y-auto sm:p-6" aria-busy="true">
@@ -248,6 +283,9 @@ export function ClinicalSummaryPage() {
 
   const abnormalCount = alerts.filter((alert) => alert.category === "lab").length
   const alreadyReviewed = patient.status === "Completed"
+  // Deletion is only for a finished consultation. An active patient (Waiting /
+  // In Consultation) can never be deleted — the backend enforces this too.
+  const canDelete = patient.status === "Completed"
 
   return (
     <div className="p-4 flex flex-col gap-5 h-full overflow-y-auto sm:p-6">
@@ -607,6 +645,79 @@ export function ClinicalSummaryPage() {
         </p>
         {reviewError && (
           <p className="text-xs text-[#991B1B] mt-3 font-semibold">⚠ {reviewError}</p>
+        )}
+      </Modal>
+
+      {/* Danger zone — permanent deletion, only after the consultation is done. */}
+      <section className="mt-2 rounded-2xl border border-[#FCA5A5] bg-[#FEF2F2] p-4 sm:p-5">
+        <h3 className="text-sm font-bold text-[#991B1B]">Patient Record</h3>
+        <p className="mt-1 text-sm text-[#991B1B]/90">
+          After the consultation is completed, this record can be permanently deleted.
+        </p>
+        {canDelete ? (
+          <button
+            type="button"
+            onClick={() => {
+              setDeleteError(null)
+              setDeleteOpen(true)
+            }}
+            className="mt-3 rounded-xl bg-[#DC2626] px-4 py-2 text-sm font-bold text-white transition-colors hover:bg-[#B91C1C]"
+          >
+            Delete Patient Record
+          </button>
+        ) : (
+          <p className="mt-3 text-xs font-medium text-[#991B1B]/80">
+            This record can only be deleted once the patient is marked
+            completed/reviewed. Active patients cannot be deleted.
+          </p>
+        )}
+      </section>
+
+      <Modal
+        open={deleteOpen}
+        title="Delete Patient Record"
+        onClose={() => (deleting ? null : setDeleteOpen(false))}
+        footer={
+          <>
+            <button
+              type="button"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleting}
+              className="px-4 py-2 text-sm font-semibold rounded-xl border border-[#D1E4ED] text-[#5A7184] hover:bg-[#F0F7FA]"
+            >
+              Cancel
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleDelete()}
+              disabled={deleting}
+              className="px-4 py-2 text-sm font-bold rounded-xl bg-[#DC2626] text-white hover:bg-[#B91C1C]"
+            >
+              {deleting ? "Deleting…" : "Delete Record"}
+            </button>
+          </>
+        }
+      >
+        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
+          <dt className="text-[#5A7184]">Patient name</dt>
+          <dd className="font-semibold text-[#0D1B2A]">{patient.name}</dd>
+          <dt className="text-[#5A7184]">Patient ID</dt>
+          <dd className="font-semibold text-[#0D1B2A] mono">{patient.id}</dd>
+          <dt className="text-[#5A7184]">Age</dt>
+          <dd className="font-semibold text-[#0D1B2A]">{patient.age} yrs</dd>
+          <dt className="text-[#5A7184]">Current status</dt>
+          <dd className="font-semibold text-[#0D1B2A]">{patient.status}</dd>
+          <dt className="text-[#5A7184]">Visit date</dt>
+          <dd className="font-semibold text-[#0D1B2A]">
+            {formatDate(new Date(patient.submittedAt))}
+          </dd>
+        </dl>
+        <p className="mt-4 text-sm text-[#991B1B] font-medium leading-relaxed">
+          Are you sure you want to delete this patient record? This action cannot
+          be undone.
+        </p>
+        {deleteError && (
+          <p className="text-xs text-[#991B1B] mt-3 font-semibold">⚠ {deleteError}</p>
         )}
       </Modal>
     </div>

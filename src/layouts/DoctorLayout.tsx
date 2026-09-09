@@ -88,6 +88,11 @@ export function DoctorLayout() {
     [navigate],
   )
 
+  const clearSelectedPatient = useCallback(() => {
+    setSelectedPatientId("")
+    storePatientId("")
+  }, [])
+
   const stats = useMemo(
     () => ({
       waiting: patients.filter((p) => p.status === "Waiting").length,
@@ -109,6 +114,7 @@ export function DoctorLayout() {
     setSearch,
     selectedPatientId,
     selectPatient,
+    clearSelectedPatient,
     patients,
     loading,
     refresh,

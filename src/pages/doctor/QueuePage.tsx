@@ -1,5 +1,5 @@
-import { useMemo, useState } from "react"
-import { Link } from "react-router-dom"
+import { useEffect, useMemo, useState } from "react"
+import { Link, useLocation, useNavigate } from "react-router-dom"
 import { PatientRow } from "@/components/doctor"
 import { useDoctorLayout } from "@/layouts"
 import type { QueueFilter } from "@/types"
@@ -7,9 +7,26 @@ import { cn, formatDate } from "@/utils"
 
 const FILTERS: QueueFilter[] = ["all", "waiting", "completed"]
 
+interface QueueLocationState {
+  deletedPatientName?: string
+}
+
 export function QueuePage() {
   const { patients, loading, search, setSearch, selectPatient } = useDoctorLayout()
   const [filter, setFilter] = useState<QueueFilter>("all")
+
+  // A successful "Delete Patient Record" navigates here with the deleted name.
+  const location = useLocation()
+  const navigate = useNavigate()
+  const deletedName = (location.state as QueueLocationState | null)?.deletedPatientName
+  const [showDeleted, setShowDeleted] = useState(false)
+  useEffect(() => {
+    if (deletedName) {
+      setShowDeleted(true)
+      // Clear the history state so a refresh doesn't re-show the message.
+      navigate(".", { replace: true, state: null })
+    }
+  }, [deletedName, navigate])
 
   const filtered = useMemo(() => {
     const term = search.trim().toLowerCase()
@@ -33,6 +50,22 @@ export function QueuePage() {
 
   return (
     <div className="p-4 flex flex-col gap-5 h-full overflow-y-auto sm:p-6">
+      {showDeleted && (
+        <div
+          role="status"
+          className="bg-[#ECFDF5] border border-[#6EE7B7] rounded-2xl px-4 py-3 flex items-center justify-between gap-3 text-sm text-[#065F46]"
+        >
+          <span>✓ Patient record deleted successfully.</span>
+          <button
+            type="button"
+            onClick={() => setShowDeleted(false)}
+            className="text-xs font-bold underline shrink-0"
+          >
+            Dismiss
+          </button>
+        </div>
+      )}
+
       <div className="flex flex-col items-start justify-between gap-3 lg:flex-row lg:items-center">
         <div>
           <h1 className="text-xl font-bold text-[#0D1B2A] sm:text-2xl">

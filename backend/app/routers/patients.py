@@ -1,8 +1,9 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy.orm import Session
 
+from app.core.auth import require_doctor
 from app.core.config import Settings, get_settings
 from app.core.database import get_db
 from app.schemas.patient import DoctorOut, PatientOut, StatusUpdate
@@ -36,6 +37,29 @@ def update_patient_status(patient_id: str, body: StatusUpdate, db: Session = Dep
     if not patient:
         raise HTTPException(status_code=404, detail="Patient not found")
     return patient
+
+
+@router.delete("/patients/{patient_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_patient(
+    patient_id: str,
+    db: Session = Depends(get_db),
+    _role: str = Depends(require_doctor),
+):
+    """Permanently delete a completed/reviewed patient and all dependent records.
+
+    Doctor-role only (see app/core/auth.require_doctor). Refuses to delete an
+    active patient (Waiting / In Consultation) with 409 — active records are
+    never removable. Deletion is transactional and cascades to every child row
+    (see patient_service.delete_patient)."""
+    result = patient_service.delete_patient(db, patient_id)
+    if result == "not_found":
+        raise HTTPException(status_code=404, detail="Patient not found")
+    if result == "not_deletable":
+        raise HTTPException(
+            status_code=409,
+            detail="Only a completed/reviewed patient can be deleted.",
+        )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.get("/doctors/me", response_model=DoctorOut)

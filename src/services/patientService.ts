@@ -185,6 +185,26 @@ export const patientService = {
     return updated
   },
 
+  /**
+   * Permanently deletes a patient and all dependent records via the backend
+   * DELETE endpoint. The backend enforces that only a completed/reviewed
+   * patient can be deleted and that the caller has the doctor role — this is
+   * never a frontend-only removal. Rejects (throws) on any failure so the
+   * caller can keep the patient visible and show an error.
+   */
+  async deletePatient(id: string): Promise<void> {
+    if (!API_CONFIG.useMock) {
+      await request<void>(`/patients/${id}`, {
+        method: "DELETE",
+        // Placeholder RBAC until real auth exists (see backend app/core/auth.py).
+        headers: { "X-User-Role": "doctor" },
+      })
+      return
+    }
+    await delay(120)
+    queue = queue.filter((patient) => patient.id !== id)
+  },
+
   /** Test/demo helper — resets the in-memory queue to the seeded data. */
   resetQueue(): void {
     queue = [...MOCK_PATIENTS]
