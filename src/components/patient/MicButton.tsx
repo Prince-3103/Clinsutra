@@ -27,9 +27,9 @@ export function MicButton({ listening, disabled, onToggle }: MicButtonProps) {
       )}
     >
       <span className="text-3xl" aria-hidden>
-        {listening ? "⏹" : "🎤"}
+        {listening ? "🔴" : "🎙"}
       </span>
-      <span>{listening ? t("mic.stop") : t("mic.speak")}</span>
+      <span>{listening ? t("mic.listening") : t("mic.speak")}</span>
       {listening && (
         <span className="absolute inset-0 rounded-full border-4 border-red-400 animate-ping opacity-60" />
       )}

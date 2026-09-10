@@ -1,6 +1,6 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
 import { RequireDoctor } from "@/components/auth"
-import { DemoModeSwitcher, ErrorBoundary } from "@/components/common"
+import { ErrorBoundary } from "@/components/common"
 import { AuthProvider, KioskSessionProvider } from "@/hooks"
 import { DoctorLayout, KioskLayout } from "@/layouts"
 import { NotFoundPage } from "@/pages/NotFoundPage"
@@ -36,8 +36,6 @@ export default function App() {
       <ErrorBoundary>
         <AuthProvider>
         <KioskSessionProvider>
-          <DemoModeSwitcher />
-
           <Routes>
             <Route path="/" element={<Navigate to="/kiosk" replace />} />
 

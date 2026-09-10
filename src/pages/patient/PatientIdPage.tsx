@@ -23,6 +23,21 @@ export function PatientIdPage() {
     updateIdentification({ mode: next })
   }
 
+  // Keep only digits, capped, so bad characters can never reach the field.
+  const onlyDigits = (value: string, max: number) => value.replace(/\D/g, "").slice(0, max)
+
+  // A sensible human age is 1–120; 0, negatives and non-numbers are invalid.
+  const ageValue = identification.age.trim()
+  const ageNum = Number(ageValue)
+  const ageInvalid = ageValue !== "" && (!Number.isInteger(ageNum) || ageNum < 1 || ageNum > 120)
+
+  // Indian mobile numbers are exactly 10 digits.
+  const phoneValue = identification.phone.trim()
+  const phoneInvalid = phoneValue !== "" && phoneValue.length !== 10
+
+  // In the "new patient" path, block Continue while any entered field is invalid.
+  const newModeBlocked = mode === "new" && (ageInvalid || phoneInvalid)
+
   const inputClass =
     "w-full border-2 border-[#D1E4ED] rounded-2xl px-4 py-3 text-base font-mono text-[#0D1B2A] focus:outline-none focus:border-[#0A6E8A] placeholder:text-[#C0D4DF] sm:px-5 sm:py-4 sm:text-xl"
 
@@ -45,6 +60,16 @@ export function PatientIdPage() {
 
     if (!hasName) {
       setError(t("patientId.validation"))
+      return
+    }
+
+    if (ageInvalid) {
+      setError(t("patientId.validationAge"))
+      return
+    }
+
+    if (phoneInvalid) {
+      setError(t("patientId.validationPhone"))
       return
     }
 
@@ -212,10 +237,24 @@ export function PatientIdPage() {
                 id="age"
                 inputMode="numeric"
                 value={identification.age}
-                onChange={(event) => updateIdentification({ age: event.target.value })}
+                onChange={(event) => {
+                  setError(null)
+                  updateIdentification({ age: onlyDigits(event.target.value, 3) })
+                }}
+                aria-invalid={ageInvalid}
                 placeholder="42"
-                className="w-full border-2 border-[#D1E4ED] rounded-xl px-4 py-3 text-base text-[#0D1B2A] focus:outline-none focus:border-[#0A6E8A] placeholder:text-[#C0D4DF] sm:text-lg"
+                className={cn(
+                  "w-full border-2 rounded-xl px-4 py-3 text-base text-[#0D1B2A] focus:outline-none placeholder:text-[#C0D4DF] sm:text-lg",
+                  ageInvalid
+                    ? "border-[#DC2626] focus:border-[#DC2626]"
+                    : "border-[#D1E4ED] focus:border-[#0A6E8A]",
+                )}
               />
+              {ageInvalid && (
+                <p className={cn("mt-1 text-sm text-[#B91C1C]", scriptClass)}>
+                  {t("patientId.validationAge")}
+                </p>
+              )}
             </div>
 
             <div>
@@ -255,12 +294,26 @@ export function PatientIdPage() {
               </label>
               <input
                 id="phone"
-                inputMode="tel"
+                inputMode="numeric"
                 value={identification.phone}
-                onChange={(event) => updateIdentification({ phone: event.target.value })}
+                onChange={(event) => {
+                  setError(null)
+                  updateIdentification({ phone: onlyDigits(event.target.value, 10) })
+                }}
+                aria-invalid={phoneInvalid}
                 placeholder="9XXXXXXXXX"
-                className="w-full border-2 border-[#D1E4ED] rounded-xl px-4 py-3 text-base text-[#0D1B2A] focus:outline-none focus:border-[#0A6E8A] placeholder:text-[#C0D4DF] sm:text-lg"
+                className={cn(
+                  "w-full border-2 rounded-xl px-4 py-3 text-base text-[#0D1B2A] focus:outline-none placeholder:text-[#C0D4DF] sm:text-lg",
+                  phoneInvalid
+                    ? "border-[#DC2626] focus:border-[#DC2626]"
+                    : "border-[#D1E4ED] focus:border-[#0A6E8A]",
+                )}
               />
+              {phoneInvalid && (
+                <p className={cn("mt-1 text-sm text-[#B91C1C]", scriptClass)}>
+                  {t("patientId.validationPhone")}
+                </p>
+              )}
             </div>
           </div>
         </Card>
@@ -283,7 +336,12 @@ export function PatientIdPage() {
         </p>
       )}
 
-      <Button size="xl" onClick={handleContinue} className={cn("w-full", scriptClass)}>
+      <Button
+        size="xl"
+        onClick={handleContinue}
+        disabled={newModeBlocked}
+        className={cn("w-full", scriptClass)}
+      >
         {t("common.continue")}
       </Button>
     </div>
