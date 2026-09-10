@@ -27,13 +27,29 @@ class Settings(BaseSettings):
     upload_dir: str = "./uploads"
     max_upload_bytes: int = 10 * 1024 * 1024
 
-    # Seeded single-clinician identity. Real auth/RBAC is explicitly out of
-    # scope for this phase.
+    # Seeded single-clinician identity (name/room/etc). The login credentials
+    # for this doctor come from the demo_doctor_* settings below.
     doctor_id: str = "DOC-01"
     doctor_name: str = "Dr. Anjali Mehta"
     doctor_specialty: str = "Cardiologist"
     doctor_room: str = "OPD 3"
     doctor_initials: str = "A"
+
+    # --- Authentication (JWT + RBAC) ----------------------------------------
+    # The signing secret MUST be provided via the environment in any real
+    # deployment. The default below is an obvious dev-only placeholder so tests
+    # and local runs work out of the box; it is not a real secret and must be
+    # overridden with a long random value in production.
+    jwt_secret_key: str = "dev-insecure-change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    access_token_expire_minutes: int = 60
+
+    # Credentials the demo doctor is seeded with (see app/seed.py and
+    # app/services/auth_service.seed_demo_doctor). The password is hashed with
+    # bcrypt before it is ever stored — the plaintext never reaches the DB.
+    # Override both in the environment; never commit real credentials.
+    demo_doctor_email: str = "doctor@clinsutra.demo"
+    demo_doctor_password: str = "change-me"
 
     # Gemini is the current MVP LLM provider (see app/services/ai_service.py).
     # Empty by default on purpose: with no key set, the AI service treats

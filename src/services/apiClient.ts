@@ -33,9 +33,23 @@ export class ApiError extends Error {
 
 let authToken: string | null = null
 
-/** Called after login once the backend exists. Kept in memory only. */
+/** Set the bearer token attached to every request. In memory only. */
 export function setAuthToken(token: string | null): void {
   authToken = token
+}
+
+// Centralized reactions to auth failures, registered once by AuthProvider so no
+// component has to handle 401/403 itself.
+type AuthHandlers = {
+  /** Fired when an *authenticated* request is rejected (expired/invalid session). */
+  onUnauthorized?: () => void
+  /** Fired when the server refuses an action the role can't perform (403). */
+  onForbidden?: (message: string) => void
+}
+let authHandlers: AuthHandlers = {}
+
+export function registerAuthHandlers(handlers: AuthHandlers): void {
+  authHandlers = handlers
 }
 
 interface RequestOptions {
@@ -86,6 +100,14 @@ export async function request<TResponse>(
     })
 
     if (!response.ok) {
+      // 401 on a request that carried a token means the session expired/was
+      // revoked — clear it centrally so the app returns to the login screen.
+      // (Login itself sends no token, so a bad-credentials 401 never triggers
+      // this and is handled locally by the login form.)
+      if (response.status === 401 && authToken) authHandlers.onUnauthorized?.()
+      if (response.status === 403) {
+        authHandlers.onForbidden?.("You are not authorized to perform this action.")
+      }
       // Deliberately does not echo the response body: it may carry patient data.
       throw new ApiError(
         `Request to ${path} failed`,

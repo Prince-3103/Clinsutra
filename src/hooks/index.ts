@@ -1,3 +1,6 @@
+export { AuthProvider } from "./AuthProvider"
+export { useAuth } from "./authContext"
+export type { AuthContextValue, AuthStatus } from "./authContext"
 export { KioskSessionProvider } from "./KioskSessionProvider"
 export { useKioskSession } from "./useKioskSession"
 export { useKioskFlow } from "./useKioskFlow"

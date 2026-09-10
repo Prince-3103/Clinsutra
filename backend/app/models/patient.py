@@ -11,6 +11,7 @@ from __future__ import annotations
 import datetime as dt
 
 from sqlalchemy import JSON, DateTime, Enum, Integer, String, Text
+from sqlalchemy import true as sa_true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.database import Base
@@ -79,7 +80,14 @@ class Patient(Base):
 
 
 class Doctor(Base):
-    """Single seeded row today — real auth/RBAC is out of scope for this phase."""
+    """A clinician who can log in to the dashboard.
+
+    Doubles as the auth/identity record (Phase 1 auth): `email` + `password_hash`
+    back JWT login, `role` drives RBAC (currently only "doctor"; "nurse"/"admin"
+    can be added later without a schema change since role is a plain string), and
+    `is_active` lets an account be disabled. Auth columns are nullable so rows
+    created before Phase 1 remain valid until seeded with credentials.
+    """
 
     __tablename__ = "doctors"
 
@@ -88,3 +96,15 @@ class Doctor(Base):
     specialty: Mapped[str] = mapped_column(String(120))
     room: Mapped[str] = mapped_column(String(32))
     initials: Mapped[str] = mapped_column(String(4))
+
+    # --- Authentication / RBAC ----------------------------------------------
+    email: Mapped[str | None] = mapped_column(String(255), unique=True, index=True, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    role: Mapped[str] = mapped_column(String(20), default="doctor", server_default="doctor")
+    is_active: Mapped[bool] = mapped_column(default=True, server_default=sa_true())
+    created_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=dt.datetime.utcnow
+    )
+    updated_at: Mapped[dt.datetime] = mapped_column(
+        DateTime(timezone=True), default=dt.datetime.utcnow, onupdate=dt.datetime.utcnow
+    )

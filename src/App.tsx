@@ -1,6 +1,7 @@
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom"
+import { RequireDoctor } from "@/components/auth"
 import { DemoModeSwitcher, ErrorBoundary } from "@/components/common"
-import { KioskSessionProvider } from "@/hooks"
+import { AuthProvider, KioskSessionProvider } from "@/hooks"
 import { DoctorLayout, KioskLayout } from "@/layouts"
 import { NotFoundPage } from "@/pages/NotFoundPage"
 import {
@@ -17,6 +18,7 @@ import {
 import {
   AlertsPage,
   ClinicalSummaryPage,
+  LoginPage,
   QueuePage,
   TimelinePage,
 } from "@/pages/doctor"
@@ -32,6 +34,7 @@ export default function App() {
   return (
     <BrowserRouter>
       <ErrorBoundary>
+        <AuthProvider>
         <KioskSessionProvider>
           <DemoModeSwitcher />
 
@@ -50,17 +53,24 @@ export default function App() {
               <Route path="complete" element={<CompletePage />} />
             </Route>
 
-            <Route path="/doctor" element={<DoctorLayout />}>
-              <Route index element={<Navigate to="/doctor/queue" replace />} />
-              <Route path="queue" element={<QueuePage />} />
-              <Route path="summary" element={<ClinicalSummaryPage />} />
-              <Route path="timeline" element={<TimelinePage />} />
-              <Route path="alerts" element={<AlertsPage />} />
+            {/* Public doctor login. */}
+            <Route path="/doctor/login" element={<LoginPage />} />
+
+            {/* Everything else under /doctor requires a valid doctor session. */}
+            <Route element={<RequireDoctor />}>
+              <Route path="/doctor" element={<DoctorLayout />}>
+                <Route index element={<Navigate to="/doctor/queue" replace />} />
+                <Route path="queue" element={<QueuePage />} />
+                <Route path="summary" element={<ClinicalSummaryPage />} />
+                <Route path="timeline" element={<TimelinePage />} />
+                <Route path="alerts" element={<AlertsPage />} />
+              </Route>
             </Route>
 
             <Route path="*" element={<NotFoundPage />} />
           </Routes>
         </KioskSessionProvider>
+        </AuthProvider>
       </ErrorBoundary>
     </BrowserRouter>
   )

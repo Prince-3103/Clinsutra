@@ -1,0 +1,1 @@
+export { RequireDoctor } from "./RequireDoctor"

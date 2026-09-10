@@ -1,4 +1,12 @@
-export { API_CONFIG, ApiError, request, delay, setAuthToken } from "./apiClient"
+export {
+  API_CONFIG,
+  ApiError,
+  request,
+  delay,
+  setAuthToken,
+  registerAuthHandlers,
+} from "./apiClient"
+export { authService } from "./authService"
 export { patientService } from "./patientService"
 export type { QueueQuery, KioskSubmission, SubmissionReceipt } from "./patientService"
 export { clinicalService } from "./clinicalService"

@@ -12,7 +12,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.core.config import get_settings
-from app.routers import clinical, documents, interview, kiosk, patients, voice
+from app.routers import auth, clinical, documents, interview, kiosk, patients, voice
 
 settings = get_settings()
 logger = logging.getLogger("clinsutra")
@@ -61,6 +61,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception) -> JSONR
     )
 
 
+app.include_router(auth.router, prefix="/api")
 app.include_router(patients.router, prefix="/api")
 app.include_router(kiosk.router, prefix="/api")
 app.include_router(interview.router, prefix="/api")

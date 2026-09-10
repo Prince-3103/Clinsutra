@@ -194,11 +194,8 @@ export const patientService = {
    */
   async deletePatient(id: string): Promise<void> {
     if (!API_CONFIG.useMock) {
-      await request<void>(`/patients/${id}`, {
-        method: "DELETE",
-        // Placeholder RBAC until real auth exists (see backend app/core/auth.py).
-        headers: { "X-User-Role": "doctor" },
-      })
+      // The doctor JWT is attached automatically by apiClient (buildHeaders).
+      await request<void>(`/patients/${id}`, { method: "DELETE" })
       return
     }
     await delay(120)

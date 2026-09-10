@@ -17,6 +17,7 @@ export interface DoctorSidebarProps {
   search: string
   onSearchChange: (value: string) => void
   stats: { waiting: number; seen: number; flags: number }
+  onLogout: () => void
 }
 
 export function DoctorSidebar({
@@ -25,6 +26,7 @@ export function DoctorSidebar({
   search,
   onSearchChange,
   stats,
+  onLogout,
 }: DoctorSidebarProps) {
   const navigate = useNavigate()
 
@@ -126,6 +128,14 @@ export function DoctorSidebar({
           ))}
         </div>
       </div>
+
+      <button
+        type="button"
+        onClick={onLogout}
+        className="hidden mx-4 mt-2 py-2 rounded-xl text-xs font-semibold text-center text-[#F87171] hover:text-white hover:bg-[#DC2626]/30 transition-colors md:block"
+      >
+        ⎋ Log out
+      </button>
 
       <NavLink
         to="/kiosk"
